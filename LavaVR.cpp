@@ -6,9 +6,9 @@
 #include <omega.h>
 #include <omegaGl.h>
 #include <omegaToolkit.h>
-#include "../src/ViewerApp.h"
-#include "../src/LavaVu.h"
-#include "../src/Server.h"
+#include "LavaVu/src/ViewerApp.h"
+#include "LavaVu/src/LavaVu.h"
+#include "LavaVu/src/Server.h"
 #include <dirent.h>
 
 using namespace omega;
@@ -43,8 +43,6 @@ public:
   OpenGLViewer* viewer;
   LavaVu* glapp;
   bool redisplay;
-  int argc;
-  char** argv;
   //Copy of commands
   std::deque<std::string> commands;
   //Widgets
@@ -84,8 +82,12 @@ public:
     viewer = new OpenGLViewer(false, false);
     r->addRenderPass(new LavaVuRenderPass(r, this, viewer));
   }
-
-  float setArgs(int argc, char** argv) {this->argc = argc; this->argv = argv;}
+  
+  //Methods exposed to python
+  void runCommand(const String& cmd)
+  {
+    glapp->parseCommands(cmd);
+  }
 
   virtual void handleEvent(const Event& evt);
   virtual void cameraSetup(bool init=false);
@@ -149,9 +151,9 @@ void LavaVuRenderPass::initialize()
   if (found)
   {
     // Run the system menu script
-    pi->runFile(filename, 0);
+    //pi->runFile(filename, 0);
     // Call the function from the script that will setup the menu.
-    pi->eval("_onAppStart('" + expath + "')");
+    //pi->eval("_onAppStart('" + expath + "')");
   }
 
   //Create the app
@@ -170,6 +172,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Load vis data for first window
       FilePath init("init.script");
       app->glapp->loadFile(init);
+      if (!app->glapp->amodel) app->glapp->defaultModel();
       app->glapp->cacheLoad();
       app->glapp->loadWindow(0, -1, true);
 
@@ -217,10 +220,10 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 
       DisplaySystem* ds = app->getEngine()->getDisplaySystem();
       Colour& bg = viewer->background;
-      ds->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
+      //ds->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
       //Omegalib 5.1+
       Camera* cam = Engine::instance()->getDefaultCamera();
-      //cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
+      cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
 
       viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
       viewer->init();
@@ -278,6 +281,13 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       glEnable(GL_BLEND);
       viewer->display();
       //app->redisplay = false;
+
+      //Draw overlay on first screen only
+      if (context.tile->isInGrid)
+      {
+        if (context.tile->gridX == 0 && context.tile->gridY == 0)
+           app->glapp->aview->drawOverlay(viewer->inverse);
+      }
     }
 
     client->getRenderer()->endDraw();
@@ -592,13 +602,37 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
    }
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+LavaVuApplication* initialize()
+{
+    LavaVuApplication* vrm = new LavaVuApplication();
+    ModuleServices::addModule(vrm);
+    vrm->doInitialize(Engine::instance());
+    return vrm;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Python API
+#include "omega/PythonInterpreterWrapper.h"
+BOOST_PYTHON_MODULE(LavaVR)
+{
+    // OmegaViewer
+    PYAPI_REF_BASE_CLASS(LavaVuApplication)
+        PYAPI_METHOD(LavaVuApplication, runCommand)
+        ;
+
+    def("initialize", initialize, PYAPI_RETURN_REF);
+}
+
+/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ApplicationBase entry point
 int main(int argc, char** argv)
 {
   Application<LavaVuApplication> app("LavaVR");
-  return omain(app, argc, argv);
+  //return omain(app, argc, argv);
+  char* name = "blah";
+  return omain(app, 1, &name);
 }
-
+*/
 #endif
 

@@ -1,74 +1,68 @@
-####################################################################################################################### 
-# Omega Lib build for gLucifer
-#---------------------------------------------------------------------------------------------------------------------
-# Copyright 2013							Monash University
-# Authors:										
-#  Owen Kaluza							owen.kaluza@monash.edu
-#######################################################################################################################
-cmake_minimum_required(VERSION 2.8.1) 
-project(LavaVR)
+#request_dependency(cyclops)
 
-find_package(Omegalib)
+# The following line makes sure the cyclops module is installed.
+#if(TARGET cyclops)
 
+# Set the module name here
+SET(MODULE_NAME LavaVR)
 
-# Source files
-SET( srcs
+# Set module name and source files here
+add_library(${MODULE_NAME} MODULE 
         LavaVR.cpp
-        ../src/LavaVu.cpp
-        ../src/Server.cpp
-        ../src/InteractiveViewer.cpp
-        ../src/OpenGLViewer.cpp
-        ../src/base64.cpp
-        ../src/ColourMap.cpp
-        ../src/Colours.cpp
-        ../src/DrawingObject.cpp
-        ../src/Extensions.cpp
-        ../src/FontSans.cpp
-        ../src/Geometry.cpp
-        ../src/GraphicsUtil.cpp
-        ../src/Util.cpp
-        ../src/Lines.cpp
-        ../src/Model.cpp
-        ../src/Points.cpp
-        ../src/QuadSurfaces.cpp
-        ../src/Shaders.cpp
-        ../src/Shapes.cpp
-        ../src/Tracers.cpp
-        ../src/TriSurfaces.cpp
-        ../src/Vectors.cpp
-        ../src/Volumes.cpp
-        ../src/VideoEncoder.cpp
-        ../src/View.cpp
-        ../src/Win.cpp
-        ../src/tiny_obj_loader.cc
-        ../src/jpeg/jpge.cpp
-        ../src/jpeg/jpgd.cpp
-        ../src/json.cpp
-        ../src/mongoose/mongoose.c
-        ../src/sqlite3/src/sqlite3.c
-   )
-    
-#######################################################################################################################
-# Headers
-SET( headers 
-        ../src/ViewerApp.h
-        ../src/OpenGLViewer.h
-   ) 
-        
+        LavaVu/src/LavaVu.cpp
+        LavaVu/src/Server.cpp
+        LavaVu/src/InteractiveViewer.cpp
+        LavaVu/src/OpenGLViewer.cpp
+        LavaVu/src/base64.cpp
+        LavaVu/src/ColourMap.cpp
+        LavaVu/src/Colours.cpp
+        LavaVu/src/DrawingObject.cpp
+        LavaVu/src/Extensions.cpp
+        LavaVu/src/FontSans.cpp
+        LavaVu/src/Geometry.cpp
+        LavaVu/src/GraphicsUtil.cpp
+        LavaVu/src/Util.cpp
+        LavaVu/src/Lines.cpp
+        LavaVu/src/Model.cpp
+        LavaVu/src/Points.cpp
+        LavaVu/src/QuadSurfaces.cpp
+        LavaVu/src/Shaders.cpp
+        LavaVu/src/Shapes.cpp
+        LavaVu/src/Tracers.cpp
+        LavaVu/src/TriSurfaces.cpp
+        LavaVu/src/Vectors.cpp
+        LavaVu/src/Volumes.cpp
+        LavaVu/src/VideoEncoder.cpp
+        LavaVu/src/View.cpp
+        LavaVu/src/Win.cpp
+        LavaVu/src/tiny_obj_loader.cc
+        LavaVu/src/jpeg/jpge.cpp
+        LavaVu/src/jpeg/jpgd.cpp
+        LavaVu/src/json.cpp
+        LavaVu/src/mongoose/mongoose.c
+        LavaVu/src/sqlite3/src/sqlite3.c
+        )
+
+# Set the module library dependencies here
+target_link_libraries(${MODULE_NAME}
+        dl
+        z
+        png
+        omega 
+        omegaToolkit 
+        )
+
 #######################################################################################################################
 # Setup compile info
 
-add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/../src/shaders/")
-#add_definitions(-DDEBUG -g)
-add_definitions(-O3)
+add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="LavaVu/src/shaders/")
+add_definitions(-DDEBUG -g)
+#add_definitions(-O3)
 
-#add_library(common OBJECT ${srcs})
-
-include_directories(${OMEGA_INCLUDE_DIRS})
-
-add_executable(LavaVR ${srcs} ${headers})
-
-target_link_libraries(LavaVR dl z png python2.7 ${OMEGA_LIB} ${OMEGA_TOOLKIT_LIB})
-
-
+#------------------------------------------------------------------------------
+# DO NOT MODIFY ANYTHING BELOW AFTER THIS LINE
+set_target_properties(${MODULE_NAME} PROPERTIES PREFIX "")
+if(WIN32)
+        set_target_properties(${MODULE_NAME} PROPERTIES FOLDER modules SUFFIX ".pyd")
+endif()
 
