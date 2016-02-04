@@ -151,9 +151,9 @@ void LavaVuRenderPass::initialize()
   if (found)
   {
     // Run the system menu script
-    //pi->runFile(filename, 0);
+    pi->runFile(filename, 0);
     // Call the function from the script that will setup the menu.
-    //pi->eval("_onAppStart('" + expath + "')");
+    pi->eval("_onAppStart('" + expath + "')");
   }
 
   //Create the app
@@ -218,10 +218,8 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
            app->glapp->quiet = true;  //Disable text output
       }
 
-      DisplaySystem* ds = app->getEngine()->getDisplaySystem();
+      //Set background colour
       Colour& bg = viewer->background;
-      //ds->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
-      //Omegalib 5.1+
       Camera* cam = Engine::instance()->getDefaultCamera();
       cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
 
@@ -603,12 +601,13 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Module entry point
 LavaVuApplication* initialize()
 {
-    LavaVuApplication* vrm = new LavaVuApplication();
-    ModuleServices::addModule(vrm);
-    vrm->doInitialize(Engine::instance());
-    return vrm;
+  LavaVuApplication* vrm = new LavaVuApplication();
+  ModuleServices::addModule(vrm);
+  vrm->doInitialize(Engine::instance());
+  return vrm;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -616,23 +615,21 @@ LavaVuApplication* initialize()
 #include "omega/PythonInterpreterWrapper.h"
 BOOST_PYTHON_MODULE(LavaVR)
 {
-    // OmegaViewer
-    PYAPI_REF_BASE_CLASS(LavaVuApplication)
-        PYAPI_METHOD(LavaVuApplication, runCommand)
-        ;
+  // OmegaViewer
+  PYAPI_REF_BASE_CLASS(LavaVuApplication)
+      PYAPI_METHOD(LavaVuApplication, runCommand)
+      ;
 
-    def("initialize", initialize, PYAPI_RETURN_REF);
+  def("initialize", initialize, PYAPI_RETURN_REF);
 }
 
-/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ApplicationBase entry point
 int main(int argc, char** argv)
 {
   Application<LavaVuApplication> app("LavaVR");
-  //return omain(app, argc, argv);
-  char* name = "blah";
-  return omain(app, 1, &name);
+  return omain(app, argc, argv);
 }
-*/
+
 #endif
 
