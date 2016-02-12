@@ -2,4 +2,4 @@
 rm -rf CMakeFiles
 rm CMakeCache.txt
 cmake .
-make -j4
+make -j12

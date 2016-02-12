@@ -121,7 +121,7 @@ void LavaVuRenderPass::initialize()
    SystemManager* sys = SystemManager::instance();
    if (sys->isMaster())
       //Quality = 0, don't serve images
-      viewer->addOutput(Server::Instance(viewer, expath + "../bin/html", 8080, 0, 4));
+      viewer->addOutput(Server::Instance(viewer, expath + "LavaVu/src/html", 8080, 0, 4));
 #endif
 
   // Initialize the omegaToolkit python API
@@ -194,23 +194,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
          }
       }
 
-      //Add scripts menu
-      DIR *dir;
-      struct dirent *ent;
-      if ((dir = opendir(".")) != NULL)
-      {
-         while ((ent = readdir(dir)) != NULL)
-         {
-            FilePath fe = FilePath(ent->d_name);
-            if (fe.type == "script" && fe.base != "init")
-            {
-               printf ("%s\n", fe.full.c_str());
-               pi->eval("_addFileMenuItem('" + fe.full + "')");
-            }
-         }
-         closedir (dir);
-      }
-
       if (context.tile->isInGrid)
       {
         //app->master = glapp; //Copy to master ref
@@ -239,6 +222,24 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       if (navSpeed <= 0.0) navSpeed = abs(translate[2]) * 0.05;
       cc->setSpeed(navSpeed);
 
+      //Add scripts menu
+      DIR *dir;
+      struct dirent *ent;
+      if ((dir = opendir(".")) != NULL)
+      {
+         while ((ent = readdir(dir)) != NULL)
+         {
+            FilePath fe = FilePath(ent->d_name);
+            if (fe.type == "script" && fe.base != "init")
+            {
+               printf ("%s\n", fe.full.c_str());
+               if (fe.base == "cave") //Run cave.script at startup
+                 pi->eval("_sendCommand('script " + fe.full + "')");
+               pi->eval("_addFileMenuItem('" + fe.full + "')");
+            }
+         }
+         closedir (dir);
+      }
     }
 
     //Copy commands before consumed
