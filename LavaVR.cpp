@@ -6,7 +6,6 @@
 #include <omega.h>
 #include <omegaGl.h>
 #include <omegaToolkit.h>
-#include "LavaVu/src/ViewerApp.h"
 #include "LavaVu/src/LavaVu.h"
 #include "LavaVu/src/Server.h"
 #include <dirent.h>
@@ -18,21 +17,16 @@ using namespace omegaToolkit::ui;
 class LavaVuApplication;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class LavaVuRenderPass: public RenderPass, ViewerApp
+class LavaVuRenderPass: public RenderPass
 {
 public:
-  LavaVuRenderPass(Renderer* client, LavaVuApplication* app, OpenGLViewer* viewer): RenderPass(client, "LavaVuRenderPass"), app(app), ViewerApp() {}
+  LavaVuRenderPass(Renderer* client, LavaVuApplication* app, OpenGLViewer* viewer): RenderPass(client, "LavaVuRenderPass"), app(app), viewer(viewer) {}
   virtual void initialize();
   virtual void render(Renderer* client, const DrawContext& context);
 
-   // Virtual functions for interactivity (from ViewerApp/ApplicationInterface)
-   virtual bool mouseMove(int x, int y) {}
-   virtual bool mousePress(MouseButton btn, bool down, int x, int y) {}
-   virtual bool mouseScroll(int scroll) {}
-   virtual bool keyPress(unsigned char key, int x, int y) {}
-
 private:
   LavaVuApplication* app;
+  OpenGLViewer* viewer;
 
 };
 
@@ -192,7 +186,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
             if (!amodel->objects[i]->skip)
             {
                //pi->eval("_addMenuItem('" + amodel->objects[i]->name + "', 'toggle " + amodel->objects[i]->name + "')");
-               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name + (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
+               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name + (amodel->objects[i]->visible ? "', True)" : "', False)"));
                //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
             }
          }
@@ -217,9 +211,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->cameraSetup(true);
 
       //Default nav speed
-      float navSpeed = 0.0;
-      if (Properties::globals.count("navspeed") > 0)
-        navSpeed = Properties::globals["navspeed"];
+      float navSpeed = Geometry::properties["navspeed"].ToFloat(0);
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -547,7 +539,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
            //TODO: default is model rotate, enable timestep sweep mode via menu option
-           bool rotateStick = Properties::globals.count("sweep") == 0;
+           bool rotateStick = Geometry::properties["sweep"].ToInt(0) == 0;
            if (rotateStick)
            {
                //L2 Trigger (large)
