@@ -202,11 +202,6 @@ def onEvent():
   e = getEvent()
   type = e.getServiceType()
 
-  if e.isButtonDown(EventFlags.ButtonLeft): 
-    print("Left button pressed")
-  if e.isButtonDown(EventFlags.ButtonUp): 
-    print("Up button pressed")
-
   # If we want to check multiple controllers or other tracked objects,
   # we could also check the sourceID of the event
   sourceID = e.getSourceId()

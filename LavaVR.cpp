@@ -21,7 +21,7 @@ class LavaVuApplication;
 class LavaVuRenderPass: public RenderPass, ViewerApp
 {
 public:
-  LavaVuRenderPass(Renderer* client, LavaVuApplication* app, OpenGLViewer* viewer): RenderPass(client, "LavaVuRenderPass"), app(app), ViewerApp(viewer) {}
+  LavaVuRenderPass(Renderer* client, LavaVuApplication* app, OpenGLViewer* viewer): RenderPass(client, "LavaVuRenderPass"), app(app), ViewerApp() {}
   virtual void initialize();
   virtual void render(Renderer* client, const DrawContext& context);
 
@@ -157,7 +157,11 @@ void LavaVuRenderPass::initialize()
   }
 
   //Create the app
-  app->glapp = new LavaVu(arglist, viewer);
+  app->glapp = new LavaVu();
+  app->glapp->viewer = viewer;
+  viewer->app = (ApplicationInterface*)app->glapp;
+  //App specific argument processing
+  app->glapp->arguments(arglist);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +192,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
             if (!amodel->objects[i]->skip)
             {
                //pi->eval("_addMenuItem('" + amodel->objects[i]->name + "', 'toggle " + amodel->objects[i]->name + "')");
-               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name + (amodel->objects[i]->visible ? "', True)" : "', False)"));
+               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name + (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
                //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
             }
          }
@@ -213,7 +217,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->cameraSetup(true);
 
       //Default nav speed
-      float navSpeed = Geometry::properties["navspeed"].ToFloat(0);
+      float navSpeed = 0.0;
+      if (Properties::globals.count("navspeed") > 0)
+        navSpeed = Properties::globals["navspeed"];
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -541,7 +547,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
            //TODO: default is model rotate, enable timestep sweep mode via menu option
-           bool rotateStick = Geometry::properties["sweep"].ToInt(0) == 0;
+           bool rotateStick = Properties::globals.count("sweep") == 0;
            if (rotateStick)
            {
                //L2 Trigger (large)
