@@ -420,6 +420,27 @@ void LavaVuApplication::handleEvent(const Event& evt)
   }
   else if(evt.getServiceType() == Service::Wand)
   {
+    std::stringstream buttons;
+    if (evt.isButtonDown(Event::Button2)) //Circle
+      buttons << "Button2 ";
+    if (evt.isButtonDown(Event::Button3)) //Cross
+      buttons << "Button3 ";
+    if (evt.isButtonDown(Event::Button5)) //L1
+      buttons << "Button5 ";
+    if (evt.isButtonDown(Event::Button7)) //L2
+      buttons << "Button7 ";
+    if (evt.isButtonDown(Event::ButtonLeft ))
+      buttons << "ButtonL ";
+    if (evt.isButtonDown(Event::ButtonRight ))
+      buttons << "ButtonR ";
+    if (evt.isButtonDown(Event::ButtonUp))
+      buttons << "ButtonU ";
+    if (evt.isButtonDown(Event::ButtonDown))
+      buttons << "ButtonD ";
+    std::string buttonstr = buttons.str();
+    if (buttonstr.length() > 0)
+       std::cout << buttonstr << " : Analogue LR: " << evt.getAxis(0) << " UD: " << evt.getAxis(1) << std::endl;
+
     int x = evt.getPosition().x();
     int y = evt.getPosition().y();
     int key = evt.getSourceId();
@@ -543,13 +564,13 @@ void LavaVuApplication::handleEvent(const Event& evt)
            if (rotateStick)
            {
                //L2 Trigger (large)
-               if (abs(analogUD) > 0.01)
+               if (abs(analogUD) > 0.02)
                {
                   std::stringstream rcmd;
                   rcmd << "rotate x " << analogUD;
                   glapp->parseCommands(rcmd.str());
                }
-               if (abs(analogLR) > 0.01)
+               if (abs(analogLR) > 0.02)
                {
                   std::stringstream rcmd;
                   rcmd << "rotate y " << analogLR;
@@ -559,9 +580,9 @@ void LavaVuApplication::handleEvent(const Event& evt)
             }
             else if (abs(analogUD) > abs(analogLR))
             {
-               if (analogUD > 0.01)
+               if (analogUD > 0.02)
                  glapp->parseCommands("timestep down");
-               else if (analogUD < 0.01)
+               else if (analogUD < 0.02)
                  glapp->parseCommands("timestep up");
                evt.setProcessed();
             }
