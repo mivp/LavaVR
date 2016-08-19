@@ -38,13 +38,11 @@ SET( srcs
         LavaVu/src/Volumes.cpp
         LavaVu/src/VideoEncoder.cpp
         LavaVu/src/View.cpp
-        LavaVu/src/Win.cpp
-        LavaVu/src/json.cpp
         LavaVu/src/tiny_obj_loader.cc
         LavaVu/src/jpeg/jpge.cpp
         LavaVu/src/jpeg/jpgd.cpp
         LavaVu/src/mongoose/mongoose.c
-        LavaVu/src/sqlite3/src/sqlite3.c
+        LavaVu/src/sqlite3/sqlite3.c
    )
     
 #######################################################################################################################
@@ -60,7 +58,8 @@ SET( headers
 add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
 #add_definitions(-DDEBUG -g)
 add_definitions(-O3)
-#add_definitions(-std=c++11)
+
+add_definitions(-std=c++0x)
 #add_library(common OBJECT ${srcs})
 
 include_directories(${OMEGA_INCLUDE_DIRS})

@@ -73,7 +73,7 @@ public:
 
   virtual void initializeRenderer(Renderer* r) 
   { 
-    viewer = new OpenGLViewer(false, false);
+    viewer = new OpenGLViewer();
     r->addRenderPass(new LavaVuRenderPass(r, this, viewer));
   }
   
@@ -115,7 +115,11 @@ void LavaVuRenderPass::initialize()
    SystemManager* sys = SystemManager::instance();
    if (sys->isMaster())
       //Quality = 0, don't serve images
-      viewer->addOutput(Server::Instance(viewer, expath + "LavaVu/src/html", 8080, 0, 4));
+      Server::htmlpath = expath + "LavaVu/src/html";
+      Server::port = 8080;
+      Server::quality = 0;
+      Server::threads = 4;
+      viewer->addOutput(Server::Instance(viewer));
 #endif
 
   // Initialize the omegaToolkit python API
@@ -168,11 +172,10 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     if (!viewer->isopen)
     {
       //Load vis data for first window
-      FilePath init("init.script");
-      app->glapp->loadFile(init);
+      app->glapp->loadFile("init.script");
       if (!app->glapp->amodel) app->glapp->defaultModel();
       app->glapp->cacheLoad();
-      app->glapp->loadWindow(0, -1, true);
+      app->glapp->loadModelStep(0, -1, true);
 
       //Add menu items to hide/show all objects
       Model* amodel = app->glapp->amodel;
@@ -182,11 +185,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
          if (amodel->objects[i])
          {
             std::ostringstream ss;
-            ss << std::setw(5) << amodel->objects[i]->id << " : " << amodel->objects[i]->name;
+            ss << std::setw(5) << amodel->objects[i]->dbid << " : " << amodel->objects[i]->name();
             if (!amodel->objects[i]->skip)
             {
                //pi->eval("_addMenuItem('" + amodel->objects[i]->name + "', 'toggle " + amodel->objects[i]->name + "')");
-               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name + (amodel->objects[i]->visible ? "', True)" : "', False)"));
+               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name() + (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
                //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
             }
          }
@@ -196,12 +199,15 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       {
         //app->master = glapp; //Copy to master ref
         if (context.tile->gridX > 0 || context.tile->gridY > 0)
-           app->glapp->quiet = true;  //Disable text output
+        {
+           app->glapp->objectlist = false;  //Disable text output on all but first tile
+           app->glapp->status = false;
+        }
       }
 
       //Set background colour
       Colour& bg = viewer->background;
-      Camera* cam = Engine::instance()->getDefaultCamera();
+      omega::Camera* cam = Engine::instance()->getDefaultCamera();
       cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
 
       viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
@@ -211,7 +217,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->cameraSetup(true);
 
       //Default nav speed
-      float navSpeed = Geometry::properties["navspeed"].ToFloat(0);
+      float navSpeed = 0;
+      if (Properties::globals.count("navspeed") > 0);
+        navSpeed = Properties::global("navspeed");
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -253,9 +261,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     //Update title label
     if (app->glapp->viewer->title.length() > 0)
     {
-       std::string titleText = app->glapp->viewer->title + " " + app->glapp->aview->title;
+       std::string titleText = app->glapp->aview->properties["title"];
        if (app->titleLabel->getText() != titleText)
-          app->titleLabel->setText(app->glapp->viewer->title);
+          app->titleLabel->setText(titleText);
     }
 
     //Fade out status label (doesn't seem to work in cave)
@@ -301,7 +309,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 void LavaVuApplication::cameraSetup(bool init)
 {
    //Setup camera using omegalib functions
-   Camera* cam = Engine::instance()->getDefaultCamera();
+   omega::Camera* cam = Engine::instance()->getDefaultCamera();
    View* view = glapp->aview;
    float rotate[4], translate[3], focus[3];
    Vector3f oldpos = cam->getPosition();
@@ -350,7 +358,8 @@ void LavaVuApplication::cameraSetup(bool init)
    //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
    //cam->setNearFarZ(cam->getNearZ(), view->far_clip);
 
-   cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * view->orientation), Vector3f(0,1,0));
+   //cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * view->orientation), Vector3f(0,1,0));
+   cam->lookAt(Vector3f(focus[0], focus[1], focus[2]), Vector3f(0,1,0));
    cam->setPitchYawRoll(Vector3f(0, 0, 0));
 }
 
@@ -470,7 +479,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
         glapp->parseCommands("zoomclip -0.01");
-        Camera* cam = Engine::instance()->getDefaultCamera();
+        omega::Camera* cam = Engine::instance()->getDefaultCamera();
         cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
         evt.setProcessed();
       }
@@ -478,7 +487,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       {
 
         glapp->parseCommands("zoomclip 0.01");
-        Camera* cam = Engine::instance()->getDefaultCamera();
+        omega::Camera* cam = Engine::instance()->getDefaultCamera();
         cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
         evt.setProcessed();
       }
@@ -513,7 +522,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       else if (evt.isButtonDown(Event::ButtonUp))
       {
          //Reduce eye separation
-         Camera* cam = Engine::instance()->getDefaultCamera();
+         omega::Camera* cam = Engine::instance()->getDefaultCamera();
          cam->setEyeSeparation(cam->getEyeSeparation()-0.01);
          printf("Eye-separation set to %f\n", cam->getEyeSeparation());
          evt.setProcessed();
@@ -521,7 +530,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       else if (evt.isButtonDown(Event::ButtonDown))
       {
          //Increase eye separation
-         Camera* cam = Engine::instance()->getDefaultCamera();
+         omega::Camera* cam = Engine::instance()->getDefaultCamera();
          cam->setEyeSeparation(cam->getEyeSeparation()+0.01);
          printf("Eye-separation set to %f\n", cam->getEyeSeparation());
          evt.setProcessed();
@@ -560,7 +569,9 @@ void LavaVuApplication::handleEvent(const Event& evt)
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
            //TODO: default is model rotate, enable timestep sweep mode via menu option
-           bool rotateStick = Geometry::properties["sweep"].ToInt(0) == 0;
+           bool rotateStick = true;
+           if (Properties::globals.count("sweep") > 0);
+             rotateStick = false;
            if (rotateStick)
            {
                //L2 Trigger (large)
