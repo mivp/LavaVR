@@ -14,19 +14,20 @@ using namespace omega;
 using namespace omegaToolkit;
 using namespace omegaToolkit::ui;
 
+const char* binpath;
+
 class LavaVuApplication;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class LavaVuRenderPass: public RenderPass
 {
 public:
-  LavaVuRenderPass(Renderer* client, LavaVuApplication* app, OpenGLViewer* viewer): RenderPass(client, "LavaVuRenderPass"), app(app), viewer(viewer) {}
+  LavaVuRenderPass(Renderer* client, LavaVuApplication* app): RenderPass(client, "LavaVuRenderPass"), app(app) {}
   virtual void initialize();
   virtual void render(Renderer* client, const DrawContext& context);
 
 private:
   LavaVuApplication* app;
-  OpenGLViewer* viewer;
 
 };
 
@@ -34,7 +35,6 @@ private:
 class LavaVuApplication: public EngineModule
 {
 public:
-  OpenGLViewer* viewer;
   LavaVu* glapp;
   bool redisplay;
   //Copy of commands
@@ -73,8 +73,8 @@ public:
 
   virtual void initializeRenderer(Renderer* r) 
   { 
-    viewer = new OpenGLViewer();
-    r->addRenderPass(new LavaVuRenderPass(r, this, viewer));
+    //viewer = new OpenGLViewer();
+    r->addRenderPass(new LavaVuRenderPass(r, this));
   }
   
   //Methods exposed to python
@@ -104,23 +104,11 @@ void LavaVuRenderPass::initialize()
 {
   RenderPass::initialize();
 
-  //Init fractal app
+  //Init lavavu app
   std::vector<std::string> arglist;
 
   //Get the executable path
-  std::string expath = GetBinaryPath("LavaVR", "LavaVR");
-
-   //Add any output attachments to the viewer
-#ifndef DISABLE_SERVER
-   SystemManager* sys = SystemManager::instance();
-   if (sys->isMaster())
-      //Quality = 0, don't serve images
-      Server::htmlpath = expath + "LavaVu/src/html";
-      Server::port = 8080;
-      Server::quality = 0;
-      Server::threads = 4;
-      viewer->addOutput(Server::Instance(viewer));
-#endif
+  std::string expath = GetBinaryPath(binpath, "LavaVR");
 
   // Initialize the omegaToolkit python API
   omegaToolkitPythonApiInit();
@@ -144,7 +132,7 @@ void LavaVuRenderPass::initialize()
       infile.close();
       found = true;
     }
-  } 
+  }
 
   if (found)
   {
@@ -154,12 +142,19 @@ void LavaVuRenderPass::initialize()
     pi->eval("_onAppStart('" + expath + "')");
   }
 
+  //Default args
+  arglist.push_back("-a");
+  arglist.push_back("-S");
+#ifndef DISABLE_SERVER
+   SystemManager* sys = SystemManager::instance();
+   if (!sys->isMaster())
+#endif
+      arglist.push_back("-p0");
+
   //Create the app
-  app->glapp = new LavaVu();
-  app->glapp->viewer = viewer;
-  viewer->app = (ApplicationInterface*)app->glapp;
+  app->glapp = new LavaVu(binpath);
   //App specific argument processing
-  app->glapp->arguments(arglist);
+  app->glapp->run(arglist);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,8 +164,27 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
   {
     client->getRenderer()->beginDraw3D(context);
 
-    if (!viewer->isopen)
+    if (!app->glapp->viewer->isopen)
     {
+      if (context.tile->isInGrid)
+      {
+        //app->master = glapp; //Copy to master ref
+        if (context.tile->gridX > 0 || context.tile->gridY > 0)
+        {
+           app->glapp->objectlist = false;  //Disable text output on all but first tile
+           app->glapp->status = false;
+        }
+      }
+
+      //Set background colour
+      Colour& bg = app->glapp->viewer->background;
+      omega::Camera* cam = Engine::instance()->getDefaultCamera();
+      cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
+
+      //Have to manually call these as not using a window manager
+      app->glapp->viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
+      app->glapp->viewer->init();
+
       //Load vis data for first window
       app->glapp->loadFile("init.script");
       if (!app->glapp->amodel) app->glapp->defaultModel();
@@ -195,31 +209,13 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
          }
       }
 
-      if (context.tile->isInGrid)
-      {
-        //app->master = glapp; //Copy to master ref
-        if (context.tile->gridX > 0 || context.tile->gridY > 0)
-        {
-           app->glapp->objectlist = false;  //Disable text output on all but first tile
-           app->glapp->status = false;
-        }
-      }
-
-      //Set background colour
-      Colour& bg = viewer->background;
-      omega::Camera* cam = Engine::instance()->getDefaultCamera();
-      cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
-
-      viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
-      viewer->init();
-
       //Transfer LavaVu camera settings to Omegalib
       app->cameraSetup(true);
 
       //Default nav speed
       float navSpeed = 0;
-      if (Properties::globals.count("navspeed") > 0);
-        navSpeed = Properties::global("navspeed");
+      if (app->glapp->state.drawstate.globals.count("navspeed") > 0);
+        navSpeed = app->glapp->state.drawstate.global("navspeed");
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -259,9 +255,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
        app->statusLabel->setText(app->glapp->message);
     }
     //Update title label
-    if (app->glapp->viewer->title.length() > 0)
+    std::string titleText = app->glapp->aview->properties["title"];
+    if (titleText.length() > 0)
     {
-       std::string titleText = app->glapp->aview->properties["title"];
        if (app->titleLabel->getText() != titleText)
           app->titleLabel->setText(titleText);
     }
@@ -284,14 +280,14 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       view->apply(false); //Fixes vol-rend rotate origin issue but breaks connectome initial pos
          
       glEnable(GL_BLEND);
-      viewer->display();
+      app->glapp->viewer->display();
       //app->redisplay = false;
 
       //Draw overlay on first screen only
       if (context.tile->isInGrid)
       {
         if (context.tile->gridX == 0 && context.tile->gridY == 0)
-           app->glapp->aview->drawOverlay(viewer->inverse);
+           app->glapp->aview->drawOverlay(app->glapp->viewer->inverse, titleText);
       }
     }
 
@@ -383,21 +379,21 @@ void LavaVuApplication::handleEvent(const Event& evt)
     {
       case Event::Down:
         //printf("%d %d\n", button, flags);
-        if (button <= RightButton) viewer->mouseState ^= (int)pow(2, (int)button);
-        viewer->mousePress(button, true, x, y);
+        if (button <= RightButton) glapp->viewer->mouseState ^= (int)pow(2, (int)button);
+        glapp->viewer->mousePress(button, true, x, y);
           redisplay = true;
           break;
       case Event::Up:
-        viewer->mouseState = 0;
-        viewer->mousePress(button, false, x, y);
+        glapp->viewer->mouseState = 0;
+        glapp->viewer->mousePress(button, false, x, y);
           break;
       case Event::Zoom:
-        viewer->mouseScroll(evt.getExtraDataInt(0));
+        glapp->viewer->mouseScroll(evt.getExtraDataInt(0));
          break;
       case Event::Move:
-         if (viewer->mouseState)
+         if (glapp->viewer->mouseState)
          {
-            viewer->mouseMove(x, y);
+            glapp->viewer->mouseMove(x, y);
             //redisplay = true;
          }
           break;
@@ -424,7 +420,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         else if (key == 260) key = KEY_HOME;
         else if (key == 267) key = KEY_END;
       }
-      //viewer->keyPress(key, x, y);
+      //glapp->viewer->keyPress(key, x, y);
     }
   }
   else if(evt.getServiceType() == Service::Wand)
@@ -570,7 +566,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         {
            //TODO: default is model rotate, enable timestep sweep mode via menu option
            bool rotateStick = true;
-           if (Properties::globals.count("sweep") > 0);
+           if (glapp->state.drawstate.globals.count("sweep") > 0);
              rotateStick = false;
            if (rotateStick)
            {
@@ -659,6 +655,7 @@ BOOST_PYTHON_MODULE(LavaVR)
 int main(int argc, char** argv)
 {
   Application<LavaVuApplication> app("LavaVR");
+  binpath = argv[0];
   return omain(app, argc, argv);
 }
 

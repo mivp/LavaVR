@@ -55,10 +55,9 @@ SET( headers
 #######################################################################################################################
 # Setup compile info
 
-add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
+add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
 #add_definitions(-DDEBUG -g)
 add_definitions(-O3)
-
 add_definitions(-std=c++0x)
 #add_library(common OBJECT ${srcs})
 
