@@ -188,7 +188,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Load vis data for first window
       app->glapp->loadFile("init.script");
       if (!app->glapp->amodel) app->glapp->defaultModel();
-      app->glapp->cacheLoad();
+      //app->glapp->cacheLoad();
+      //TODO: This could be a problem, need to cache load all models as old function provided
+      app->glapp->amodel->cacheLoad();
       app->glapp->loadModelStep(0, -1, true);
 
       //Add menu items to hide/show all objects
@@ -212,10 +214,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Transfer LavaVu camera settings to Omegalib
       app->cameraSetup(true);
 
+      //Disable auto-sort
+      app->glapp->drawstate.globals["sort"] = 0;
+
       //Default nav speed
-      float navSpeed = 0;
-      if (app->glapp->state.drawstate.globals.count("navspeed") > 0);
-        navSpeed = app->glapp->state.drawstate.global("navspeed");
+      float navSpeed = app->glapp->drawstate.global("navspeed");
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -245,7 +248,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     }
 
     //Copy commands before consumed
-    app->commands = OpenGLViewer::commands;
+    app->commands = app->glapp->viewer->commands;
 
     //Update status label
     if (app->statusLabel->getText() != app->glapp->message)
@@ -294,7 +297,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     client->getRenderer()->endDraw();
 
     //Process timer based commands
-    OpenGLViewer::pollInput();
+    app->glapp->viewer->pollInput();
   }
   else if(context.task == DrawContext::OverlayDrawTask)
   {
@@ -564,11 +567,9 @@ void LavaVuApplication::handleEvent(const Event& evt)
         float analogUD = evt.getAxis(1);
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
-           //TODO: default is model rotate, enable timestep sweep mode via menu option
-           bool rotateStick = true;
-           if (glapp->state.drawstate.globals.count("sweep") > 0);
-             rotateStick = false;
-           if (rotateStick)
+           //Default is model rotate, TODO: enable timestep sweep mode via menu option
+           bool sweep = glapp->drawstate.global("sweep");
+           if (!sweep)
            {
                //L2 Trigger (large)
                if (abs(analogUD) > 0.02)
@@ -616,12 +617,12 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
    SystemManager* sys = SystemManager::instance();
    if (!sys->isMaster())
    {
-      OpenGLViewer::commands.clear();
+      glapp->viewer->commands.clear();
       std::stringstream iss(commandstr);
       std::string line;
       while(std::getline(iss, line))
       {
-         OpenGLViewer::commands.push_back(line);
+         glapp->viewer->commands.push_back(line);
          //glapp->parseCommands(line);
       }
    }

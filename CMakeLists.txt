@@ -38,7 +38,7 @@ SET( srcs
         LavaVu/src/Volumes.cpp
         LavaVu/src/VideoEncoder.cpp
         LavaVu/src/View.cpp
-        LavaVu/src/tiny_obj_loader.cc
+        LavaVu/src/tiny_obj_loader.h
         LavaVu/src/jpeg/jpge.cpp
         LavaVu/src/jpeg/jpgd.cpp
         LavaVu/src/mongoose/mongoose.c
@@ -58,14 +58,14 @@ SET( headers
 add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
 #add_definitions(-DDEBUG -g)
 add_definitions(-O3)
-add_definitions(-std=c++0x)
+set (CMAKE_CXX_STANDARD 11)
 #add_library(common OBJECT ${srcs})
 
 include_directories(${OMEGA_INCLUDE_DIRS})
 
 add_executable(LavaVR ${srcs} ${headers})
 
-target_link_libraries(LavaVR dl z png python2.7 ${OMEGA_LIB} ${OMEGA_TOOLKIT_LIB})
+target_link_libraries(LavaVR m stdc++ dl z png python2.7 ${OMEGA_LIB} ${OMEGA_TOOLKIT_LIB})
 
 
 
