@@ -57,7 +57,9 @@ SET( headers
 
 add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
 #add_definitions(-DDEBUG -g)
+add_definitions(-DNDEBUG)
 add_definitions(-O3)
+add_definitions(-Wno-deprecated-declarations)
 set (CMAKE_CXX_STANDARD 11)
 #add_library(common OBJECT ${srcs})
 

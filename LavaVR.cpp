@@ -31,6 +31,13 @@ private:
 
 };
 
+struct CameraState
+{
+  Vector3f pos;
+  Vector4f rot;
+  omega::Quaternion orientation;
+};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class LavaVuApplication: public EngineModule
 {
@@ -84,7 +91,10 @@ public:
   }
 
   virtual void handleEvent(const Event& evt);
-  virtual void cameraSetup(bool init=false);
+  virtual void cameraInit();
+  virtual void cameraSave();
+  virtual void cameraRestore();
+  virtual void cameraReset();
   virtual void commitSharedData(SharedOStream& out);
   virtual void updateSharedData(SharedIStream& in);
 
@@ -95,8 +105,7 @@ private:
   Ref<Container> myUi;  
   std::string labelText;
   bool menuOpen;
-  Vector3f lastpos;
-  Vector4f lastrot;
+  std::vector<CameraState> positions;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +221,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       }
 
       //Transfer LavaVu camera settings to Omegalib
-      app->cameraSetup(true);
+      app->cameraInit();
 
       //Disable auto-sort
       app->glapp->drawstate.globals["sort"] = 0;
@@ -279,9 +288,8 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     {
       //Apply the model rotation/scaling
       View* view = app->glapp->aview;   
-      //view->apply();
-      view->apply(false); //Fixes vol-rend rotate origin issue but breaks connectome initial pos
-         
+      view->apply();
+
       glEnable(GL_BLEND);
       app->glapp->viewer->display();
       //app->redisplay = false;
@@ -305,61 +313,108 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void LavaVuApplication::cameraSetup(bool init)
+void LavaVuApplication::cameraInit()
 {
-   //Setup camera using omegalib functions
-   omega::Camera* cam = Engine::instance()->getDefaultCamera();
-   View* view = glapp->aview;
-   float rotate[4], translate[3], focus[3];
-   Vector3f oldpos = cam->getPosition();
-   view->getCamera(rotate, translate, focus);
+  //Setup camera using omegalib functions
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  View* view = glapp->aview;
+  float rotate[4], translate[3], focus[3];
+  Vector3f curpos = cam->getPosition();
+  view->getCamera(rotate, translate, focus);
 
-   //Set position from translate
-   Vector3f newpos = Vector3f(translate[0], translate[1], -translate[2]);
-      if (!init && newpos == oldpos)
-      {
-         newpos = lastpos; //cam->setPosition(lastpos);
-         //view->setTranslation(lastpos[0], lastpos[1], -lastpos[2]);
-         view->setRotation(lastrot[0], lastrot[1], lastrot[2], lastrot[3]);
-         view->print();
-         //return;
-      }
-      else
-      {
-         if (!init) view->setRotation(0, 0, 0, 1);
-         lastpos = oldpos;
-         lastrot = Vector4f(rotate[0], rotate[1], rotate[2], rotate[3]);
-      }
+  //Set position from translate
+  Vector3f newpos = Vector3f(translate[0], translate[1], -translate[2]);
 
-   //view->reset();
-   //view->setRotation(0, 0, 0, 1);
+  cam->setPosition(newpos);
+  //From viewing distance
+  //cam->setPosition(Vector3f(focus[0], focus[1], (focus[2] - view->model_size)) * view->orientation);
+  //At center
+  //cam->setPosition(Vector3f(focus[0], focus[1], focus[2] * view->orientation));
 
-   cam->setPosition(newpos);
-   //From viewing distance
-   //cam->setPosition(Vector3f(focus[0], focus[1], (focus[2] - view->model_size)) * view->orientation);
-   //At center
-   //cam->setPosition(Vector3f(focus[0], focus[1], focus[2] * view->orientation));
+  //Default eye separation, TODO: set this via LavaVu property controllable via init.script
+  cam->setEyeSeparation(view->eye_sep_ratio);
 
-   //Default eye separation, TODO: set this via LavaVu property controllable via init.script
-   cam->setEyeSeparation(view->eye_sep_ratio);
+  ///Setting clip planes can kill menu! Need to check using MenuManager::getDefaultMenuDistance()
+  //MenuManager* mm = MenuManager::createAndInitialize();
+  //float menuDist = mm->getDefaultMenuDistance();
+  //Menu* main = mm->getMainMenu(); //float menuDist = mm->getDefaultMenuDistance();
+  //main->addButton("SetCamera", "getDefaultCamera().setPosition(Vector3(0, 0, 0))"));
 
-   ///Setting clip planes can kill menu! Need to check using MenuManager::getDefaultMenuDistance()
-   //MenuManager* mm = MenuManager::createAndInitialize();
-   //float menuDist = mm->getDefaultMenuDistance();
-   //Menu* main = mm->getMainMenu(); //float menuDist = mm->getDefaultMenuDistance();
-   //main->addButton("SetCamera", "getDefaultCamera().setPosition(Vector3(0, 0, 0))"));
+  //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
+  //NOTE: Setting near clip too close is bad for eyes, too far kills negative parallax stereo
+  //TODO: Make sure this can be controlled via script
+  cam->setNearFarZ(view->near_clip, view->far_clip);
+  //cam->setNearFarZ(view->near_clip*0.1, view->far_clip);
+  //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
+  //cam->setNearFarZ(cam->getNearZ(), view->far_clip);
 
-   //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
-   //NOTE: Setting near clip too close is bad for eyes, too far kills negative parallax stereo
-   //TODO: Make sure this can be controlled via script
-   cam->setNearFarZ(view->near_clip, view->far_clip);
-   //cam->setNearFarZ(view->near_clip*0.1, view->far_clip);
-   //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
-   //cam->setNearFarZ(cam->getNearZ(), view->far_clip);
+  int coordsys = view->properties["coordsystem"];
+  cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * coordsys), Vector3f(0,1,0));
+  cam->setPitchYawRoll(Vector3f(0, 0, 0));
+}
 
-   //cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * view->orientation), Vector3f(0,1,0));
-   cam->lookAt(Vector3f(focus[0], focus[1], focus[2]), Vector3f(0,1,0));
-   cam->setPitchYawRoll(Vector3f(0, 0, 0));
+void LavaVuApplication::cameraSave()
+{
+  //Save camera positon, orientation and LavaVu model rotation
+  //TODO: Add a menu entry, save/restore list to/from disk, use json globals?
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  View* view = glapp->aview;
+  float rotate[4], translate[3], focus[3];
+  Vector3f curpos = cam->getPosition();
+  omega::Quaternion curo = cam->getOrientation();
+  view->getCamera(rotate, translate, focus);
+
+  CameraState current;
+  current.orientation = curo;
+  current.pos = curpos;
+  current.rot = Vector4f(rotate[0], rotate[1], rotate[2], rotate[3]);
+  positions.push_back(current);
+}
+
+void LavaVuApplication::cameraRestore()
+{
+  //Cycle through saved camera positions
+  static int idx = 0;
+
+  //No saved entry or at end of list, reset to default position
+  if (positions.size() == 0 || idx < 0)
+  {
+    idx = positions.size()-1;
+    cameraReset();
+    return;
+  }
+
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  View* view = glapp->aview;
+  CameraState& next = positions[idx];
+  //Restore the previous view
+  view->setRotation(next.rot[0], next.rot[1], next.rot[2], next.rot[3]);
+  //view->print();
+  cam->setOrientation(next.orientation);
+  cam->setPosition(next.pos);
+
+  //Set next index
+  idx--;
+}
+
+void LavaVuApplication::cameraReset()
+{
+  //Reset the view to default starting pos
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  View* view = glapp->aview;
+  float rotate[4], translate[3], focus[3];
+
+  view->reset();
+  view->init(true);  //Reset camera to default view of model
+
+  view->getCamera(rotate, translate, focus);
+
+  cam->setOrientation(omega::Quaternion(0, 0, 0, 1));
+  cam->setPosition(Vector3f(translate[0], translate[1], -translate[2]));
+
+  int coordsys = view->properties["coordsystem"];
+  cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * coordsys), Vector3f(0,1,0));
+  cam->setPitchYawRoll(Vector3f(0, 0, 0));
 }
 
 void LavaVuApplication::handleEvent(const Event& evt)
@@ -429,14 +484,24 @@ void LavaVuApplication::handleEvent(const Event& evt)
   else if(evt.getServiceType() == Service::Wand)
   {
     std::stringstream buttons;
-    if (evt.isButtonDown(Event::Button2)) //Circle
+    if (evt.isButtonDown(Event::Button1)) //Y(yellow)
+      buttons << "Button1 ";
+    if (evt.isButtonDown(Event::Button2)) //Circle / B(red)
       buttons << "Button2 ";
-    if (evt.isButtonDown(Event::Button3)) //Cross
+    if (evt.isButtonDown(Event::Button3)) //Cross / A(green)
       buttons << "Button3 ";
+    if (evt.isButtonDown(Event::Button4)) //X(blue)
+      buttons << "Button4 ";
     if (evt.isButtonDown(Event::Button5)) //L1
       buttons << "Button5 ";
+    if (evt.isButtonDown(Event::Button6)) //??
+      buttons << "Button6 ";
     if (evt.isButtonDown(Event::Button7)) //L2
       buttons << "Button7 ";
+    if (evt.isButtonDown(Event::Button8)) //??
+      buttons << "Button8 ";
+    if (evt.isButtonDown(Event::Button9)) //??
+      buttons << "Button9 ";
     if (evt.isButtonDown(Event::ButtonLeft ))
       buttons << "ButtonL ";
     if (evt.isButtonDown(Event::ButtonRight ))
@@ -462,14 +527,23 @@ void LavaVuApplication::handleEvent(const Event& evt)
     {
        if (menuOpen)
        {
-           menuOpen = false;
-           printf("Menu closed\n");
+         menuOpen = false;
+         printf("Menu closed\n");
        }
        else
        {
-           //Restore camera
-           cameraSetup();
+         //Save camera
+         cameraSave();
        }
+    }
+    else if (evt.isButtonDown(Event::Button1)) //Y
+    {
+       //Cycle through saved camera positions
+       cameraRestore();
+    }
+    else if (evt.isButtonDown(Event::Button4)) //X
+    {
+       //Pressing this screws up audio??
     }
     else if (evt.isButtonDown(Event::Button7))
     {
@@ -480,7 +554,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         glapp->parseCommands("zoomclip -0.01");
         omega::Camera* cam = Engine::instance()->getDefaultCamera();
         cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
-        evt.setProcessed();
+        //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonRight ))
       {
@@ -488,7 +562,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
         glapp->parseCommands("zoomclip 0.01");
         omega::Camera* cam = Engine::instance()->getDefaultCamera();
         cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
-        evt.setProcessed();
+        //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonUp))
       {
@@ -511,12 +585,12 @@ void LavaVuApplication::handleEvent(const Event& evt)
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
          glapp->parseCommands("scale all 0.95");
-         evt.setProcessed();
+         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonRight ))
       {
          glapp->parseCommands("scale all 1.05");
-         evt.setProcessed();
+         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonUp))
       {
@@ -524,7 +598,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
          omega::Camera* cam = Engine::instance()->getDefaultCamera();
          cam->setEyeSeparation(cam->getEyeSeparation()-0.01);
          printf("Eye-separation set to %f\n", cam->getEyeSeparation());
-         evt.setProcessed();
+         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonDown))
       {
@@ -532,7 +606,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
          omega::Camera* cam = Engine::instance()->getDefaultCamera();
          cam->setEyeSeparation(cam->getEyeSeparation()+0.01);
          printf("Eye-separation set to %f\n", cam->getEyeSeparation());
-         evt.setProcessed();
+         //evt.setProcessed();
       }
       else
       {
@@ -584,7 +658,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
                   rcmd << "rotate y " << analogLR;
                   glapp->parseCommands(rcmd.str());
                }
-               evt.setProcessed();
+               //evt.setProcessed();
             }
             else if (abs(analogUD) > abs(analogLR))
             {
@@ -592,7 +666,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
                  glapp->parseCommands("timestep down");
                else if (analogUD < 0.02)
                  glapp->parseCommands("timestep up");
-               evt.setProcessed();
+               //evt.setProcessed();
             }
         }
     }

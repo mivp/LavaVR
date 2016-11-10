@@ -5,11 +5,14 @@ from omega import *
 from euclid import *
 import urllib2
 import os
+import sys
 
 cmds = []
 labels = dict()
 objmnu = None
 filemnu = None
+global mainmnu
+mainmnu = None
 animate = 0
 saveAnimate = 7 # 10 fps
 time = 0
@@ -143,6 +146,10 @@ def _onAppStart(binpath):
   #_setFrameRate(8)
   #_addMenuItem(mainmnu, "Save Position", "_getPosition()")
   #_addMenuItem(mainmnu, "Restore Position", "_setPosition()")
+#  MonashMenu.addMonashMenu(mainmnu)
+#  MonashMenu.monmnu.addButton("Laos Camera1", "MonashMenu.SetCamera(getDefaultCamera(),Vector3(-5.88, 5.62, 2.12),Vector3(-2.9770012022552583, -0.8469435864074656, -1.3611488669685063))")
+#  if 'Script_onAppStart' in locals() or 'Script_onAppStart' in globals():
+#    Script_onAppStart(mainmnu,_sendCommand)
 
 def _addMenuItem(menu, label, call, checked=None):
   #Adds menu item, checkable optional
@@ -186,7 +193,7 @@ def onUpdate(frame, t, dt):
     spf = 1.0 / fps
     #print "fps %f spf %f elapsed %f" % (fps, spf, elapsed)
     if elapsed > spf:
-      _sendCommand("@next")
+      _sendCommand("next")
       labels["Animate"].setText("Animate: " + str(int(round(1.0 / elapsed))) + "fps")
       time = t
 
