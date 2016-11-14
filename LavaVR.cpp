@@ -14,8 +14,6 @@ using namespace omega;
 using namespace omegaToolkit;
 using namespace omegaToolkit::ui;
 
-const char* binpath;
-
 class LavaVuApplication;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +48,7 @@ public:
   Ref<Label> statusLabel;
   Ref<Label> titleLabel;
 
-  LavaVuApplication(): EngineModule("LavaVuApplication") { redisplay = true; enableSharedData(); menuOpen = false;}
+  LavaVuApplication(): EngineModule("LavaVuApplication") { redisplay = true; enableSharedData(); menuOpen = false; glapp = NULL; }
 
     virtual void initialize()
     {
@@ -113,57 +111,28 @@ void LavaVuRenderPass::initialize()
 {
   RenderPass::initialize();
 
-  //Init lavavu app
-  std::vector<std::string> arglist;
-
-  //Get the executable path
-  std::string expath = GetBinaryPath(binpath, "LavaVR");
-
   // Initialize the omegaToolkit python API
   omegaToolkitPythonApiInit();
 
-  //Attempt to run script in cwd then in executable path
-  bool found = false;
-  PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
-  std::string filename = "init.py";
-  std::ifstream infile(filename.c_str());
-  if (infile.good())
-  {
-     infile.close();
-     found = true;
-  }
-  else
-  {
-    filename = expath + filename;
-    std::ifstream infile(filename.c_str());
-    if (infile.good())
-    {
-      infile.close();
-      found = true;
-    }
-  }
-
-  if (found)
-  {
-    // Run the system menu script
-    pi->runFile(filename, 0);
-    // Call the function from the script that will setup the menu.
-    pi->eval("_onAppStart('" + expath + "')");
-  }
-
-  //Default args
-  arglist.push_back("-a");
-  arglist.push_back("-S");
-#ifndef DISABLE_SERVER
-   SystemManager* sys = SystemManager::instance();
-   if (!sys->isMaster())
-#endif
-      arglist.push_back("-p0");
-
   //Create the app
-  app->glapp = new LavaVu(binpath);
-  //App specific argument processing
-  app->glapp->run(arglist);
+  if (!app->glapp)
+  {
+    //Init lavavu app
+    std::vector<std::string> arglist;
+    //Default args
+    arglist.push_back("-a");
+    arglist.push_back("-S");
+#ifndef DISABLE_SERVER
+     //Enable server
+     SystemManager* sys = SystemManager::instance();
+     if (sys->isMaster())
+        arglist.push_back("-p8080");
+#endif
+    printf("Launching new LavaVu instance as none provided\n");
+    app->glapp = new LavaVu("LavaVu/bin");
+    //App specific argument processing
+    app->glapp->run(arglist);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +153,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
            app->glapp->status = false;
         }
       }
-
       //Set background colour
       Colour& bg = app->glapp->viewer->background;
       omega::Camera* cam = Engine::instance()->getDefaultCamera();
@@ -195,7 +163,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->glapp->viewer->init();
 
       //Load vis data for first window
-      app->glapp->loadFile("init.script");
+      //app->glapp->loadFile("init.script");
       if (!app->glapp->amodel) app->glapp->defaultModel();
       //app->glapp->cacheLoad();
       //TODO: This could be a problem, need to cache load all models as old function provided
@@ -205,6 +173,8 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Add menu items to hide/show all objects
       Model* amodel = app->glapp->amodel;
       PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
+      //NOTE: hacky but seems to be necessary to call open from python here
+      pi->eval("lv.open()");
       for (unsigned int i=0; i < amodel->objects.size(); i++)
       {
          if (amodel->objects[i])
@@ -235,25 +205,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       view->getCamera(rotate, translate, focus);
       if (navSpeed <= 0.0) navSpeed = abs(translate[2]) * 0.05;
       cc->setSpeed(navSpeed);
-
-      //Add scripts menu
-      DIR *dir;
-      struct dirent *ent;
-      if ((dir = opendir(".")) != NULL)
-      {
-         while ((ent = readdir(dir)) != NULL)
-         {
-            FilePath fe = FilePath(ent->d_name);
-            if (fe.type == "script" && fe.base != "init")
-            {
-               printf ("%s\n", fe.full.c_str());
-               if (fe.base == "cave") //Run cave.script at startup
-                 pi->eval("_sendCommand('script " + fe.full + "')");
-               pi->eval("_addFileMenuItem('" + fe.full + "')");
-            }
-         }
-         closedir (dir);
-      }
     }
 
     //Copy commands before consumed
@@ -703,12 +654,47 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Module entry point
-LavaVuApplication* initialize()
+
+//https://wiki.python.org/moin/boost.python/HowTo#SWIG_exposed_C.2B-.2B-_object_from_Python
+struct PySwigObject
+{
+  PyObject_HEAD
+  void * ptr;
+  const char * desc;
+};
+
+void* extract_swig_wrapped_pointer(PyObject* obj)
+{
+  char thisStr[] = "this";
+  //first we need to get the this attribute from the Python Object
+  if (!PyObject_HasAttrString(obj, thisStr))
+    return NULL;
+
+  PyObject* thisAttr = PyObject_GetAttrString(obj, thisStr);
+  if (thisAttr == NULL)
+    return NULL;
+
+  //This Python Object is a SWIG Wrapper and contains our pointer
+  void* pointer = ((PySwigObject*)thisAttr)->ptr;
+  Py_DECREF(thisAttr);
+  return pointer;
+}
+
+//LavaVuApplication* initialize(LavaVu* lvapp)
+LavaVuApplication* initialize(PyObject* lvswig)
 {
   LavaVuApplication* vrm = new LavaVuApplication();
+  //Use existing app
+  if (lvswig)
+  {
+    LavaVu* lvapp = (LavaVu*)extract_swig_wrapped_pointer(lvswig);
+    printf("Using passed LavaVu instance, %p\n", lvapp);
+    vrm->glapp = lvapp;
+  }
+
   ModuleServices::addModule(vrm);
   vrm->doInitialize(Engine::instance());
+
   return vrm;
 }
 
@@ -723,15 +709,6 @@ BOOST_PYTHON_MODULE(LavaVR)
       ;
 
   def("initialize", initialize, PYAPI_RETURN_REF);
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ApplicationBase entry point
-int main(int argc, char** argv)
-{
-  Application<LavaVuApplication> app("LavaVR");
-  binpath = argv[0];
-  return omain(app, argc, argv);
 }
 
 #endif
