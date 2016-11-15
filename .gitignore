@@ -1,0 +1,13 @@
+# use glob syntax.
+syntax: glob
+
+CMakeFiles/*
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+*.log
+*.eqc
+*.swp
+*.so
+*.pyc
