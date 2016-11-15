@@ -38,7 +38,7 @@ target_link_libraries(${MODULE_NAME}
 
 add_custom_target(
    LavaVu
-   COMMAND $(MAKE) LIBPNG=1 TIFF=1 VIDEO=0 X11=0
+   COMMAND $(MAKE) LIBPNG=1 TIFF=1 VIDEO=0 X11=0 DEFS=-DUSE_OMEGALIB SHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/"
    COMMAND $(MAKE) swig
    WORKING_DIRECTORY LavaVu
 )
@@ -48,10 +48,10 @@ add_dependencies(LavaVR LavaVu)
 #######################################################################################################################
 # Setup compile info
 
-add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG -DUSE_FONTS -DSHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/")
-add_definitions(-DDEBUG -g)
-#add_definitions(-DNDEBUG)
-#add_definitions(-O3)
+#add_definitions(-DDEBUG -g)
+add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG)
+add_definitions(-DNDEBUG)
+add_definitions(-O3)
 add_definitions(-Wno-deprecated-declarations)
 #add_library(common OBJECT ${srcs})
 

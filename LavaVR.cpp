@@ -85,7 +85,8 @@ public:
   //Methods exposed to python
   void runCommand(const String& cmd)
   {
-    glapp->parseCommands(cmd);
+    //glapp->parseCommands(cmd);
+    glapp->queueCommands(cmd); //Thread safe
   }
 
   virtual void handleEvent(const Event& evt);
@@ -144,15 +145,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 
     if (!app->glapp->viewer->isopen)
     {
-      if (context.tile->isInGrid)
-      {
-        //app->master = glapp; //Copy to master ref
-        if (context.tile->gridX > 0 || context.tile->gridY > 0)
-        {
-           app->glapp->objectlist = false;  //Disable text output on all but first tile
-           app->glapp->status = false;
-        }
-      }
       //Set background colour
       Colour& bg = app->glapp->viewer->background;
       omega::Camera* cam = Engine::instance()->getDefaultCamera();
@@ -169,12 +161,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //TODO: This could be a problem, need to cache load all models as old function provided
       app->glapp->amodel->cacheLoad();
       app->glapp->loadModelStep(0, -1, true);
+      app->glapp->resetViews(); //Forces bounding box update
 
       //Add menu items to hide/show all objects
       Model* amodel = app->glapp->amodel;
       PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
-      //NOTE: hacky but seems to be necessary to call open from python here
-      pi->eval("lv.open()");
       for (unsigned int i=0; i < amodel->objects.size(); i++)
       {
          if (amodel->objects[i])
@@ -242,14 +233,23 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       view->apply();
 
       glEnable(GL_BLEND);
-      app->glapp->viewer->display();
+      //app->glapp->viewer->display();
       //app->redisplay = false;
 
       //Draw overlay on first screen only
       if (context.tile->isInGrid)
       {
         if (context.tile->gridX == 0 && context.tile->gridY == 0)
-           app->glapp->aview->drawOverlay(app->glapp->viewer->inverse, titleText);
+        {
+          app->glapp->viewer->display();
+          app->glapp->aview->drawOverlay(app->glapp->viewer->inverse, titleText);
+        }
+        else
+        {
+          app->glapp->objectlist = false;  //Disable text output on all but first tile
+          app->glapp->status = false;
+          app->glapp->viewer->display();
+        }
       }
     }
 
@@ -647,8 +647,8 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
       std::string line;
       while(std::getline(iss, line))
       {
-         glapp->viewer->commands.push_back(line);
-         //glapp->parseCommands(line);
+         //glapp->viewer->commands.push_back(line);
+         /glapp->queueCommands(line);
       }
    }
 }
