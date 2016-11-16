@@ -16,9 +16,6 @@ animate = 0
 saveAnimate = 7 # 10 fps
 time = 0
 
-# add the current path to the data search paths.
-addDataPath(os.getcwd())
-
 #LavaVu functions
 lvr = None
 lv = None

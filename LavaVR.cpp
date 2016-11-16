@@ -153,14 +153,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Have to manually call these as not using a window manager
       app->glapp->viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
       app->glapp->viewer->init();
-
-      //Load vis data for first window
-      //app->glapp->loadFile("init.script");
-      if (!app->glapp->amodel) app->glapp->defaultModel();
-      //app->glapp->cacheLoad();
-      //TODO: This could be a problem, need to cache load all models as old function provided
-      app->glapp->amodel->cacheLoad();
-      app->glapp->loadModelStep(0, -1, true);
       app->glapp->resetViews(); //Forces bounding box update
 
       //Add menu items to hide/show all objects
@@ -231,6 +223,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Apply the model rotation/scaling
       View* view = app->glapp->aview;   
       view->apply();
+      //Apply clip planes
+      omega::Camera* cam = Engine::instance()->getDefaultCamera();
+      float near_clip = view->properties["near"];
+      float far_clip = view->properties["far"];
+      cam->setNearFarZ(near_clip, far_clip);
 
       glEnable(GL_BLEND);
       //app->glapp->viewer->display();
@@ -291,13 +288,10 @@ void LavaVuApplication::cameraInit()
   //Menu* main = mm->getMainMenu(); //float menuDist = mm->getDefaultMenuDistance();
   //main->addButton("SetCamera", "getDefaultCamera().setPosition(Vector3(0, 0, 0))"));
 
-  //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
   //NOTE: Setting near clip too close is bad for eyes, too far kills negative parallax stereo
-  //TODO: Make sure this can be controlled via script
-  cam->setNearFarZ(view->near_clip, view->far_clip);
-  //cam->setNearFarZ(view->near_clip*0.1, view->far_clip);
-  //cam->setNearFarZ(view->near_clip*0.01, view->far_clip);
-  //cam->setNearFarZ(cam->getNearZ(), view->far_clip);
+  float near_clip = view->properties["near"];
+  float far_clip = view->properties["far"];
+  cam->setNearFarZ(near_clip, far_clip);
 
   int coordsys = view->properties["coordsystem"];
   cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * coordsys), Vector3f(0,1,0));
@@ -503,16 +497,12 @@ void LavaVuApplication::handleEvent(const Event& evt)
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
         glapp->parseCommands("zoomclip -0.01");
-        omega::Camera* cam = Engine::instance()->getDefaultCamera();
-        cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonRight ))
       {
 
         glapp->parseCommands("zoomclip 0.01");
-        omega::Camera* cam = Engine::instance()->getDefaultCamera();
-        cam->setNearFarZ(glapp->aview->near_clip*0.1, glapp->aview->far_clip);
         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonUp))
@@ -648,7 +638,7 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
       while(std::getline(iss, line))
       {
          //glapp->viewer->commands.push_back(line);
-         /glapp->queueCommands(line);
+         glapp->queueCommands(line);
       }
    }
 }

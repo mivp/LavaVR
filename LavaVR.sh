@@ -7,7 +7,7 @@ cd ${LVDIR}
 
 #Cave only
 if [ -d /cave ]; then 
-  /cave/sabi.js/scripts/GL-highperformance
+  #/cave/sabi.js/scripts/GL-highperformance
   export PATH=/cave/dev/LavaVR/::${PATH}
   source /usr/share/Modules/3.2.10/init/bash
   module unload omegalib
