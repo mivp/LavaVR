@@ -153,6 +153,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Have to manually call these as not using a window manager
       app->glapp->viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
       app->glapp->viewer->init();
+      app->glapp->loadModelStep(0, 0, true); //Open/load if not already
       app->glapp->resetViews(); //Forces bounding box update
 
       //Add menu items to hide/show all objects
