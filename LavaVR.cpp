@@ -1,8 +1,6 @@
-/********************************************************************************************************************** 
- * LavaVu + OmegaLib
- *********************************************************************************************************************/
-#ifdef USE_OMEGALIB
-
+/************************************* 
+ * LavaVu OmegaLib Module
+ *************************************/
 #include <omega.h>
 #include <omegaGl.h>
 #include <omegaToolkit.h>
@@ -82,12 +80,12 @@ public:
     r->addRenderPass(new LavaVuRenderPass(r, this));
   }
   
-  //Methods exposed to python
+  /*/Methods exposed to python
   void runCommand(const String& cmd)
   {
     //glapp->parseCommands(cmd);
     glapp->queueCommands(cmd); //Thread safe
-  }
+  }*/
 
   virtual void handleEvent(const Event& evt);
   virtual void cameraInit();
@@ -696,11 +694,9 @@ BOOST_PYTHON_MODULE(LavaVR)
 {
   // OmegaViewer
   PYAPI_REF_BASE_CLASS(LavaVuApplication)
-      PYAPI_METHOD(LavaVuApplication, runCommand)
+      //PYAPI_METHOD(LavaVuApplication, runCommand)
       ;
 
   def("initialize", initialize, PYAPI_RETURN_REF);
 }
-
-#endif
 

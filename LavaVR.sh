@@ -14,6 +14,9 @@ if [ -d /cave ]; then
   module load omegalib/13-c++11
 fi
 
+CMD=orun
+#CMD=gdb --args orun
+
 #Run a python script or a lavavu script by extension
 function run
 {
@@ -24,10 +27,10 @@ function run
   if [ ${file_ext} = "script" ]
   then
     echo "os.chdir('${DIR}'); lv.file('${file}')"
-    orun -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
+    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
   else
     echo "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
-    orun -s LavaVR.py -x "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
+    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
     #orun -s LavaVR.py -x "os.chdir('${DIR}'); queueCommand(':r ${file}');"
   fi
 }

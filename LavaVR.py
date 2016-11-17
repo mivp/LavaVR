@@ -22,7 +22,6 @@ lv = None
 def _sendCommand(cmd):
   if not isMaster():
     return
-  #lvr.runCommand(cmd)
   lv.commands(cmd)
   #url = 'http://localhost:8080/command=' + urllib2.quote(cmd)
   #urllib2.urlopen(url)
