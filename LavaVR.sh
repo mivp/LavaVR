@@ -17,8 +17,8 @@ fi
 #Ensure correct LavaVu module gets loaded
 PYTHONPATH=${LVDIR}/LavaVu:${PYTHONPATH}
 
-#CMD=orun
-CMD="gdb --args orun"
+CMD=orun
+#CMD="gdb --args orun"
 
 #Run a python script or a lavavu script by extension
 function run
