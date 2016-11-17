@@ -14,13 +14,32 @@ if [ -d /cave ]; then
   module load omegalib/13-c++11
 fi
 
-file="${DIR}/init.script"
-if [ -f "$file" ]
+#Run a python script or a lavavu script by extension
+function run
+{
+  file=$1
+  DIR=$2
+  echo "Running ${file} from ${DIR}"
+  file_ext=${file##*.}
+  if [ ${file_ext} = "script" ]
+  then
+    echo "os.chdir('${DIR}'); lv.file('${file}')"
+    orun -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
+  else
+    echo "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
+    orun -s LavaVR.py -x "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
+    #orun -s LavaVR.py -x "os.chdir('${DIR}'); queueCommand(':r ${file}');"
+  fi
+}
+
+#Use first command line arg or init.script / init.py
+file=${1:-init.py}
+path="${DIR}/$file"
+echo $path
+if [ -f "$path" ]
 then
-  echo "Running init.script from ${DIR}"
-  orun -s LavaVR.py -x "print os.getcwd(); os.chdir('${DIR}'); queueCommand('lv.file(\"init.script\")')"
+  run ${file} ${DIR}
 else
-  echo "Running init.py from ${DIR}"
-  orun -s LavaVR.py -x "print os.getcwd(); os.chdir('${DIR}'); queueCommand(':r init.py')"
+  run init.script ${DIR}
 fi
 
