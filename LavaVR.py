@@ -178,7 +178,8 @@ queueCommand(":freefly")
 
 #Create the viewer
 print lavavu.__file__
-lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
+#lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
+lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, verbose=True)
 #lv = lavavu.Viewer(verbose=True, quality=1, port=8080, initscript=False)
 
 #Pass our LavaVu instance to LavaVR and init

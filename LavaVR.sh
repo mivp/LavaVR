@@ -14,8 +14,11 @@ if [ -d /cave ]; then
   module load omegalib/13-c++11
 fi
 
-CMD=orun
-#CMD=gdb --args orun
+#Ensure correct LavaVu module gets loaded
+PYTHONPATH=${LVDIR}/LavaVu:${PYTHONPATH}
+
+#CMD=orun
+CMD="gdb --args orun"
 
 #Run a python script or a lavavu script by extension
 function run
