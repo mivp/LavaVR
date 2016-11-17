@@ -49,9 +49,7 @@ add_dependencies(LavaVR LavaVu)
 # Setup compile info
 
 #add_definitions(-DDEBUG -g)
-add_definitions(-DUSE_OMEGALIB -DUSE_ZLIB -DHAVE_GLCONTEXT -DHAVE_LIBPNG)
-add_definitions(-DNDEBUG)
-add_definitions(-O3)
+add_definitions(-DNDEBUG -O3)
 add_definitions(-Wno-deprecated-declarations)
 #add_library(common OBJECT ${srcs})
 
