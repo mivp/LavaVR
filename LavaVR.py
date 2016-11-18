@@ -9,7 +9,7 @@ import urllib2
 import os
 
 cmds = []
-labels = dict()
+mnulabels = dict()
 objmnu = None
 filemnu = None
 animate = 0
@@ -17,9 +17,9 @@ saveAnimate = 7 # 10 fps
 time = 0
 
 #LavaVu functions
-lvr = None
 lv = None
 def _sendCommand(cmd):
+  global lv
   if not isMaster():
     return
   lv.commands(cmd)
@@ -45,20 +45,20 @@ def _toggleObject(name):
     _sendCommand('hide "' + name + '"');
 
 def _setPointSize(sizeLevel):
-  global labels
+  global mnulabels
   _sendCommand('scale points ' + str(sizeLevel))
-  labels["Point Size"].setText("Point Size: " + str(sizeLevel))
+  mnulabels["Point Size"].setText("Point Size: " + str(sizeLevel))
 
 transp = 0.0
 def _setTransparency(val):
-  global labels, transp
+  global mnulabels, transp
   trval = (10 - val) / 10.0
   if trval <= 0.01: trval = 0.01
   trans = float("{0:.1f}".format(trval))
   if trans != transp:
     #_sendCommand('alpha ' + str(trans))
     _addCommand('alpha ' + str(trans))
-    labels["Transparency"].setText("Transparency: " + str(trans))
+    mnulabels["Transparency"].setText("Transparency: " + str(trans))
     transp = trans
 
 def _setFrameRate(val):
@@ -82,9 +82,9 @@ def _addMenuItem(menu, label, call, checked=None):
   return mi
 
 def _addSlider(menu, label, call, ticks, value):
-  global labels
+  global mnulabels
   l = menu.addLabel(label)
-  labels[label] = l
+  mnulabels[label] = l
   ss = menu.addSlider(ticks, call)
   ss.getSlider().setValue(value)
   ss.getWidget().setWidth(200)
@@ -107,7 +107,7 @@ def _addFileMenuItem(filename):
   mitem = filemnu.addButton(filename, "_sendCommand('file "  + filename + "')")
 
 def onUpdate(frame, t, dt):
-  global animate, cmds, labels, time
+  global animate, cmds, mnulabels, time
   #print getDefaultCamera().getPosition()
   if animate > 0:
     elapsed = t - time
@@ -116,7 +116,7 @@ def onUpdate(frame, t, dt):
     #print "fps %f spf %f elapsed %f" % (fps, spf, elapsed)
     if elapsed > spf:
       _sendCommand("next")
-      labels["Animate"].setText("Animate: " + str(int(round(1.0 / elapsed))) + "fps")
+      mnulabels["Animate"].setText("Animate: " + str(int(round(1.0 / elapsed))) + "fps")
       time = t
 
   if frame % 10 == 0:
@@ -179,9 +179,9 @@ queueCommand(":freefly")
 #Create the viewer
 print lavavu.__file__
 #lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
-lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, verbose=True)
+lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False)
 #lv = lavavu.Viewer(verbose=True, quality=1, port=8080, initscript=False)
 
 #Pass our LavaVu instance to LavaVR and init
-lvr = LavaVR.initialize(lv.app)
+LavaVR.initialize(lv.app)
 
