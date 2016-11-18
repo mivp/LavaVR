@@ -15,7 +15,7 @@ if [ -d /cave ]; then
 fi
 
 #Ensure correct LavaVu module gets loaded
-PYTHONPATH=${LVDIR}/LavaVu:${PYTHONPATH}
+export PYTHONPATH=${LVDIR}/LavaVu:${PYTHONPATH}
 
 CMD=orun
 #CMD="gdb --args orun"
@@ -27,14 +27,14 @@ function run
   DIR=$2
   echo "Running ${file} from ${DIR}"
   file_ext=${file##*.}
-  if [ ${file_ext} = "script" ]
+  if [ ${file_ext} = "py" ]
   then
-    echo "os.chdir('${DIR}'); lv.file('${file}')"
-    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
-  else
     echo "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
     ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
-    #orun -s LavaVR.py -x "os.chdir('${DIR}'); queueCommand(':r ${file}');"
+    #${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); queueCommand(':r ${file}');"
+  else
+    echo "os.chdir('${DIR}'); lv.file('${file}')"
+    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
   fi
 }
 
