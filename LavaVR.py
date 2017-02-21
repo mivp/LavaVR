@@ -149,6 +149,13 @@ def onEvent():
 mm = MenuManager.createAndInitialize()
 menu = mm.getMainMenu()
 
+#Monash menu
+try:
+    import MonashMenu
+    MonashMenu.addMonashMenu(menu)
+except:
+    pass
+
 objmnu = menu.addSubMenu("Objects")
 objmnu.addLabel("Toggle Objects")
 filemnu = menu.addSubMenu("Files")
@@ -178,9 +185,7 @@ queueCommand(":freefly")
 
 #Create the viewer
 print lavavu.__file__
-#lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
-lv = lavavu.Viewer(hidden=False, quality=1, port=8080, initscript=False)
-#lv = lavavu.Viewer(verbose=True, quality=1, port=8080, initscript=False)
+lv = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
 
 #Pass our LavaVu instance to LavaVR and init
 LavaVR.initialize(lv.app)

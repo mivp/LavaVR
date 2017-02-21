@@ -39,6 +39,7 @@ class LavaVuApplication: public EngineModule
 {
 public:
   LavaVu* glapp;
+  bool isMaster;
   bool redisplay;
   //Copy of commands
   std::deque<std::string> commands;
@@ -46,33 +47,41 @@ public:
   Ref<Label> statusLabel;
   Ref<Label> titleLabel;
 
-  LavaVuApplication(): EngineModule("LavaVuApplication") { redisplay = true; enableSharedData(); menuOpen = false; glapp = NULL; }
+  LavaVuApplication(): EngineModule("LavaVuApplication")
+  { 
+    redisplay = true;
+    enableSharedData();
+    menuOpen = false;
+    glapp = NULL; 
+     SystemManager* sys = SystemManager::instance();
+     isMaster = sys->isMaster();
+  }
 
-    virtual void initialize()
-    {
-      //Create a label for text info
-      DisplaySystem* ds = SystemManager::instance()->getDisplaySystem();
-      // Create and initialize the UI management module.
-      myUiModule = UiModule::createAndInitialize();
-      myUi = myUiModule->getUi();
+  virtual void initialize()
+  {
+    //Create a label for text info
+    DisplaySystem* ds = SystemManager::instance()->getDisplaySystem();
+    // Create and initialize the UI management module.
+    myUiModule = UiModule::createAndInitialize();
+    myUi = myUiModule->getUi();
 
-      int sz = 100;
-      statusLabel = Label::create(myUi);
-      statusLabel->setText("");
-      statusLabel->setColor(Color::Gray);
-      statusLabel->setFont(ostr("fonts/arial.ttf %1%", %sz));
-      statusLabel->setHorizontalAlign(Label::AlignLeft);
-      statusLabel->setPosition(Vector2f(100,300));
+    int sz = 100;
+    statusLabel = Label::create(myUi);
+    statusLabel->setText("");
+    statusLabel->setColor(Color::Gray);
+    statusLabel->setFont(ostr("fonts/arial.ttf %1%", %sz));
+    statusLabel->setHorizontalAlign(Label::AlignLeft);
+    statusLabel->setPosition(Vector2f(100,300));
 
-      sz = 150;
-      titleLabel = Label::create(myUi);
-      titleLabel->setText("");
-      titleLabel->setColor(Color::Gray);
-      titleLabel->setFont(ostr("fonts/arial.ttf %1%", %sz));
-      titleLabel->setHorizontalAlign(Label::AlignLeft);
-      titleLabel->setPosition(Vector2f(100,100));
+    sz = 150;
+    titleLabel = Label::create(myUi);
+    titleLabel->setText("");
+    titleLabel->setColor(Color::Gray);
+    titleLabel->setFont(ostr("fonts/arial.ttf %1%", %sz));
+    titleLabel->setHorizontalAlign(Label::AlignLeft);
+    titleLabel->setPosition(Vector2f(100,100));
 
-    }
+  }
 
   virtual void initializeRenderer(Renderer* r) 
   { 
@@ -123,8 +132,7 @@ void LavaVuRenderPass::initialize()
     arglist.push_back("-S");
 #ifndef DISABLE_SERVER
      //Enable server
-     SystemManager* sys = SystemManager::instance();
-     if (sys->isMaster())
+     if (app->isMaster)
         arglist.push_back("-p8080");
 #endif
     printf("Launching new LavaVu instance as none provided\n");
@@ -143,11 +151,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 
     if (!app->glapp->viewer->isopen)
     {
-      //Set background colour
-      Colour& bg = app->glapp->viewer->background;
-      omega::Camera* cam = Engine::instance()->getDefaultCamera();
-      cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
-
       //Have to manually call these as not using a window manager
       app->glapp->viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
       app->glapp->viewer->init();
@@ -179,6 +182,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->glapp->drawstate.globals["sort"] = 0;
 
       //Default nav speed
+      omega::Camera* cam = Engine::instance()->getDefaultCamera();
       float navSpeed = app->glapp->drawstate.global("navspeed");
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
@@ -229,8 +233,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       cam->setNearFarZ(near_clip, far_clip);
 
       glEnable(GL_BLEND);
-      //app->glapp->viewer->display();
-      //app->redisplay = false;
 
       //Draw overlay on first screen only
       if (context.tile->isInGrid)
@@ -238,7 +240,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
         if (context.tile->gridX == 0 && context.tile->gridY == 0)
         {
           app->glapp->viewer->display();
-          app->glapp->aview->drawOverlay(app->glapp->viewer->inverse, titleText);
+          app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
         }
         else
         {
@@ -617,8 +619,11 @@ void LavaVuApplication::handleEvent(const Event& evt)
 void LavaVuApplication::commitSharedData(SharedOStream& out)
 {
    std::stringstream oss;
-   for (int i=0; i < commands.size(); i++)
-      oss << commands[i] << std::endl;
+   if (isMaster)
+   {
+     for (int i=0; i < commands.size(); i++)
+       oss << commands[i] << std::endl;
+   }
    out << oss.str();
 }
 
@@ -628,8 +633,7 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
    std::string commandstr;
    in >> commandstr;
 
-   SystemManager* sys = SystemManager::instance();
-   if (!sys->isMaster())
+   if (!isMaster && commandstr.length())
    {
       glapp->viewer->commands.clear();
       std::stringstream iss(commandstr);
