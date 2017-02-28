@@ -18,14 +18,10 @@ time = 0
 
 #LavaVu functions
 _lvu = None
-#TODO: Check: Is this deprecated? Can't we just use _lvu.queueCommands()
 def _sendCommand(cmd):
-  global lv
-  if not isMaster():
-    return
-  _lvu.commands(cmd)
-  #url = 'http://localhost:8080/command=' + urllib2.quote(cmd)
-  #urllib2.urlopen(url)
+  global _lvu
+  if isMaster():
+      _lvu.commands(cmd)
 
 def _addCommand(cmd):
   global cmds
@@ -57,8 +53,8 @@ def _setTransparency(val):
   if trval <= 0.01: trval = 0.01
   trans = float("{0:.1f}".format(trval))
   if trans != transp:
-    #_sendCommand('alpha ' + str(trans))
-    _addCommand('alpha ' + str(trans))
+    _sendCommand('alpha ' + str(trans))
+    #_addCommand('alpha ' + str(trans))
     mnulabels["Transparency"].setText("Transparency: " + str(trans))
     transp = trans
 
@@ -86,19 +82,23 @@ def _addCommandMenuItem(menu, label, command):
   #Adds a menu item to issue a command to the control server
   return _addMenuItem(menu, label, "_sendCommand('"  + command + "')")
 
-def _addObjectMenuItem(name=None, state=False):
+def _addObjectMenuItem(name, state=True):
   global objectMenu, objmnu
-  #Clear?
-  if name == None:
-      c = objmnu.getContainer()
-      for name in objectMenu:
-          c.removeChild(objectMenu[name].getWidget())
-      return
   #Adds a toggle menu item to hide/show object
   mitem = objmnu.addButton(name, "_toggleObject('"  + name + "')")
   mitem.getButton().setCheckable(True)
   mitem.getButton().setChecked(state)
   objectMenu[name] = mitem
+
+def _populateObjectMenu():
+  #Clear first
+  global objectMenu, objmnu
+  c = objmnu.getContainer()
+  for name in objectMenu:
+      c.removeChild(objectMenu[name].getWidget())
+  global _lvu
+  for name in _lvu.objects:
+      _addObjectMenuItem(str(name), _lvu.objects[name]["visible"])
 
 def _addFileMenuItem(filename):
   #Adds menu item to run a script
@@ -109,7 +109,7 @@ def _populateFileMenu():
   #Clear first
   global filemnu
   c = filemnu.getContainer()
-  for idx in range(c.getNumChildren()):
+  for idx in range(1,c.getNumChildren()):
     item = c.getChildByIndex(idx)
     c.removeChild(item)
   #Populate the files menu with any json files (TODO: *.py, *.script?)

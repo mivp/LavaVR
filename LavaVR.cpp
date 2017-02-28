@@ -184,6 +184,10 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
        app->statusLabel->setAlpha(alpha * 0.95);
 
 
+    //Apply the model rotation/scaling
+    View* view = app->glapp->aview;   
+    view->apply();
+
     glEnable(GL_BLEND);
 
     //Draw overlay on first screen only
@@ -220,22 +224,8 @@ void LavaVuApplication::updateState()
   PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
   //Populate file menu
   pi->eval("_populateFileMenu()");
-  //Clears the existing menu:
-  pi->eval("_addObjectMenuItem()");
-  for (unsigned int i=0; i < amodel->objects.size(); i++)
-  {
-     if (amodel->objects[i])
-     {
-        std::ostringstream ss;
-        ss << std::setw(5) << amodel->objects[i]->dbid << " : " << amodel->objects[i]->name();
-        if (!amodel->objects[i]->skip)
-        {
-           pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name() + 
-                    (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
-           //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
-        }
-     }
-  }
+  //Populate objects menu
+  pi->eval("_populateObjectMenu()");
 
   //Check for global camera loaded
   if (glapp->drawstate.globals.count("camera") > 0)
@@ -252,10 +242,8 @@ void LavaVuApplication::updateState()
     glapp->drawstate.globals.erase("camera");
   }
 
-  //Apply the model rotation/scaling
-  View* view = glapp->aview;   
-  view->apply();
   //Apply clip planes
+  View* view = glapp->aview;   
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
   float near_clip = view->properties["near"];
   float far_clip = view->properties["far"];
