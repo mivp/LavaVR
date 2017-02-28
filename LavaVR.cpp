@@ -1,6 +1,10 @@
 /************************************* 
  * LavaVu OmegaLib Module
  *************************************/
+
+//TODO:
+//Better near clip defaults/controls
+
 #include <omega.h>
 #include <omegaGl.h>
 #include <omegaToolkit.h>
@@ -27,20 +31,13 @@ private:
 
 };
 
-struct CameraState
-{
-  Vector3f pos;
-  Vector4f rot;
-  omega::Quaternion orientation;
-};
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class LavaVuApplication: public EngineModule
 {
 public:
   LavaVu* glapp;
   bool isMaster;
-  bool redisplay;
+
   //Copy of commands
   std::deque<std::string> commands;
   //Widgets
@@ -49,12 +46,11 @@ public:
 
   LavaVuApplication(): EngineModule("LavaVuApplication")
   { 
-    redisplay = true;
     enableSharedData();
     menuOpen = false;
     glapp = NULL; 
-     SystemManager* sys = SystemManager::instance();
-     isMaster = sys->isMaster();
+    SystemManager* sys = SystemManager::instance();
+    isMaster = sys->isMaster();
   }
 
   virtual void initialize()
@@ -89,16 +85,10 @@ public:
     r->addRenderPass(new LavaVuRenderPass(r, this));
   }
   
-  /*/Methods exposed to python
-  void runCommand(const String& cmd)
-  {
-    //glapp->parseCommands(cmd);
-    glapp->queueCommands(cmd); //Thread safe
-  }*/
-
   virtual void handleEvent(const Event& evt);
+  virtual void updateState();
+  virtual void saveState();
   virtual void cameraInit();
-  virtual void cameraSave();
   virtual void cameraRestore();
   virtual void cameraReset();
   virtual void commitSharedData(SharedOStream& out);
@@ -111,7 +101,7 @@ private:
   Ref<Container> myUi;  
   std::string labelText;
   bool menuOpen;
-  std::vector<CameraState> positions;
+  std::vector<std::string> states;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -121,25 +111,6 @@ void LavaVuRenderPass::initialize()
 
   // Initialize the omegaToolkit python API
   omegaToolkitPythonApiInit();
-
-  //Create the app
-  if (!app->glapp)
-  {
-    //Init lavavu app
-    std::vector<std::string> arglist;
-    //Default args
-    arglist.push_back("-a");
-    arglist.push_back("-S");
-#ifndef DISABLE_SERVER
-     //Enable server
-     if (app->isMaster)
-        arglist.push_back("-p8080");
-#endif
-    printf("Launching new LavaVu instance as none provided\n");
-    app->glapp = new LavaVu("LavaVu/bin");
-    //App specific argument processing
-    app->glapp->run(arglist);
-  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -157,26 +128,12 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->glapp->loadModelStep(0, 0, true); //Open/load if not already
       app->glapp->resetViews(); //Forces bounding box update
 
-      //Add menu items to hide/show all objects
-      Model* amodel = app->glapp->amodel;
-      PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
-      for (unsigned int i=0; i < amodel->objects.size(); i++)
-      {
-         if (amodel->objects[i])
-         {
-            std::ostringstream ss;
-            ss << std::setw(5) << amodel->objects[i]->dbid << " : " << amodel->objects[i]->name();
-            if (!amodel->objects[i]->skip)
-            {
-               //pi->eval("_addMenuItem('" + amodel->objects[i]->name + "', 'toggle " + amodel->objects[i]->name + "')");
-               pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name() + (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
-               //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
-            }
-         }
-      }
+
 
       //Transfer LavaVu camera settings to Omegalib
       app->cameraInit();
+
+      app->updateState(); //Object menu/camera
 
       //Disable auto-sort
       app->glapp->drawstate.globals["sort"] = 0;
@@ -194,7 +151,12 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     }
 
     //Copy commands before consumed
+    static int comlen = 0;
     app->commands = app->glapp->viewer->commands;
+    //Update state after commands are processed
+    if (comlen > app->commands.size() && app->commands.size() == 0)
+      app->updateState(); //Object menu/camera
+    comlen = app->commands.size();
 
     //Update status label
     if (app->statusLabel->getText() != app->glapp->message)
@@ -220,34 +182,23 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     }
     else
        app->statusLabel->setAlpha(alpha * 0.95);
-     
-    //if (app->redisplay)
+
+
+    glEnable(GL_BLEND);
+
+    //Draw overlay on first screen only
+    if (context.tile->isInGrid)
     {
-      //Apply the model rotation/scaling
-      View* view = app->glapp->aview;   
-      view->apply();
-      //Apply clip planes
-      omega::Camera* cam = Engine::instance()->getDefaultCamera();
-      float near_clip = view->properties["near"];
-      float far_clip = view->properties["far"];
-      cam->setNearFarZ(near_clip, far_clip);
-
-      glEnable(GL_BLEND);
-
-      //Draw overlay on first screen only
-      if (context.tile->isInGrid)
+      if (context.tile->gridX == 0 && context.tile->gridY == 0)
       {
-        if (context.tile->gridX == 0 && context.tile->gridY == 0)
-        {
-          app->glapp->viewer->display();
-          app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
-        }
-        else
-        {
-          app->glapp->objectlist = false;  //Disable text output on all but first tile
-          app->glapp->status = false;
-          app->glapp->viewer->display();
-        }
+        app->glapp->viewer->display();
+        app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
+      }
+      else
+      {
+        app->glapp->objectlist = false;  //Disable text output on all but first tile
+        app->glapp->status = false;
+        app->glapp->viewer->display();
       }
     }
 
@@ -262,6 +213,78 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void LavaVuApplication::updateState()
+{
+  //Menu items to hide/show all objects
+  Model* amodel = glapp->amodel;
+  PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
+  //Populate file menu
+  pi->eval("_populateFileMenu()");
+  //Clears the existing menu:
+  pi->eval("_addObjectMenuItem()");
+  for (unsigned int i=0; i < amodel->objects.size(); i++)
+  {
+     if (amodel->objects[i])
+     {
+        std::ostringstream ss;
+        ss << std::setw(5) << amodel->objects[i]->dbid << " : " << amodel->objects[i]->name();
+        if (!amodel->objects[i]->skip)
+        {
+           pi->eval("_addObjectMenuItem('" + amodel->objects[i]->name() + 
+                    (amodel->objects[i]->properties["visible"] ? "', True)" : "', False)"));
+           //std::cerr << "ADDING " << amodel->objects[i]->name << std::endl;
+        }
+     }
+  }
+
+  //Check for global camera loaded
+  if (glapp->drawstate.globals.count("camera") > 0)
+  {
+    json scam = glapp->drawstate.globals["camera"];
+    std::cout << " ______\n" << glapp->drawstate.globals << "\n______" << std::endl;
+    json pos = scam["position"];
+    json o = scam["orientation"];
+
+    omega::Camera* cam = Engine::instance()->getDefaultCamera();
+    cam->setOrientation(o[3], o[0], o[1], o[2]);
+    cam->setPosition(pos[0], pos[1], pos[2]);
+
+    glapp->drawstate.globals.erase("camera");
+  }
+
+  //Apply the model rotation/scaling
+  View* view = glapp->aview;   
+  view->apply();
+  //Apply clip planes
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  float near_clip = view->properties["near"];
+  float far_clip = view->properties["far"];
+  cam->setNearFarZ(near_clip, far_clip);
+}
+
+void LavaVuApplication::saveState()
+{
+  //Get camera positon, orientation and LavaVu model rotation
+  omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  View* view = glapp->aview;
+  float rotate[4], translate[3], focus[3];
+  Vector3f curpos = cam->getPosition();
+  omega::Quaternion curo = cam->getOrientation();
+  view->getCamera(rotate, translate, focus);
+
+  //Save in LavaVu global props and export
+  json scam;
+  scam["position"] = {curpos[0], curpos[1], curpos[2]};
+  scam["orientation"] = {curo.x(), curo.y(), curo.z(), curo.w()};
+  glapp->drawstate.globals["camera"] = scam;
+
+  //Recently saved states, can be cycled through with Y(yellow)
+  states.push_back(glapp->getState());
+
+  //Write state to default state file
+  glapp->queueCommands("save state.json");
+}
+
 void LavaVuApplication::cameraInit()
 {
   //Setup camera using omegalib functions
@@ -299,45 +322,24 @@ void LavaVuApplication::cameraInit()
   cam->setPitchYawRoll(Vector3f(0, 0, 0));
 }
 
-void LavaVuApplication::cameraSave()
-{
-  //Save camera positon, orientation and LavaVu model rotation
-  //TODO: Add a menu entry, save/restore list to/from disk, use json globals?
-  omega::Camera* cam = Engine::instance()->getDefaultCamera();
-  View* view = glapp->aview;
-  float rotate[4], translate[3], focus[3];
-  Vector3f curpos = cam->getPosition();
-  omega::Quaternion curo = cam->getOrientation();
-  view->getCamera(rotate, translate, focus);
-
-  CameraState current;
-  current.orientation = curo;
-  current.pos = curpos;
-  current.rot = Vector4f(rotate[0], rotate[1], rotate[2], rotate[3]);
-  positions.push_back(current);
-}
-
 void LavaVuApplication::cameraRestore()
 {
-  //Cycle through saved camera positions
+  //Cycle through saved camera positions / states
   static int idx = 0;
 
   //No saved entry or at end of list, reset to default position
-  if (positions.size() == 0 || idx < 0)
+  if (states.size() == 0 || idx < 0)
   {
-    idx = positions.size()-1;
+    idx = states.size()-1;
     cameraReset();
     return;
   }
 
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
   View* view = glapp->aview;
-  CameraState& next = positions[idx];
-  //Restore the previous view
-  view->setRotation(next.rot[0], next.rot[1], next.rot[2], next.rot[3]);
-  //view->print();
-  cam->setOrientation(next.orientation);
-  cam->setPosition(next.pos);
+  //Restore the state data
+  glapp->setState(states[idx]);
+  updateState();
 
   //Set next index
   idx--;
@@ -385,22 +387,18 @@ void LavaVuApplication::handleEvent(const Event& evt)
         //printf("%d %d\n", button, flags);
         if (button <= RightButton) glapp->viewer->mouseState ^= (int)pow(2, (int)button);
         glapp->viewer->mousePress(button, true, x, y);
-          redisplay = true;
-          break;
+        break;
       case Event::Up:
         glapp->viewer->mouseState = 0;
         glapp->viewer->mousePress(button, false, x, y);
-          break;
+        break;
       case Event::Zoom:
         glapp->viewer->mouseScroll(evt.getExtraDataInt(0));
-         break;
+        break;
       case Event::Move:
-         if (glapp->viewer->mouseState)
-         {
-            glapp->viewer->mouseMove(x, y);
-            //redisplay = true;
-         }
-          break;
+        if (glapp->viewer->mouseState)
+          glapp->viewer->mouseMove(x, y);
+        break;
       default:
         printf("? %d\n", evt.getType());
     }
@@ -478,8 +476,8 @@ void LavaVuApplication::handleEvent(const Event& evt)
        }
        else
        {
-         //Save camera
-         cameraSave();
+         //Depth sort geometry?
+         //glapp->aview->sort = true;
        }
     }
     else if (evt.isButtonDown(Event::Button1)) //Y
@@ -673,7 +671,6 @@ void* extract_swig_wrapped_pointer(PyObject* obj)
   return pointer;
 }
 
-//LavaVuApplication* initialize(LavaVu* lvapp)
 LavaVuApplication* initialize(PyObject* lvswig)
 {
   LavaVuApplication* vrm = new LavaVuApplication();
@@ -698,7 +695,7 @@ BOOST_PYTHON_MODULE(LavaVR)
 {
   // OmegaViewer
   PYAPI_REF_BASE_CLASS(LavaVuApplication)
-      //PYAPI_METHOD(LavaVuApplication, runCommand)
+      PYAPI_METHOD(LavaVuApplication, saveState)
       ;
 
   def("initialize", initialize, PYAPI_RETURN_REF);

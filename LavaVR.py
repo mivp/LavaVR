@@ -6,7 +6,7 @@ import LavaVR
 from omega import *
 from euclid import *
 import urllib2
-import os
+import glob, os
 
 cmds = []
 mnulabels = dict()
@@ -17,12 +17,13 @@ saveAnimate = 7 # 10 fps
 time = 0
 
 #LavaVu functions
-lv = None
+_lvu = None
+#TODO: Check: Is this deprecated? Can't we just use _lvu.queueCommands()
 def _sendCommand(cmd):
   global lv
   if not isMaster():
     return
-  lv.commands(cmd)
+  _lvu.commands(cmd)
   #url = 'http://localhost:8080/command=' + urllib2.quote(cmd)
   #urllib2.urlopen(url)
 
@@ -65,14 +66,6 @@ def _setFrameRate(val):
   global animate
   animate = val
 
-def _getPosition():
-  #TEST: TODO: allow saving/restoring positions
-  print getDefaultCamera().getPosition()
-
-def _setPosition():
-  #TEST: TODO: allow saving/restoring positions
-  getDefaultCamera().setPosition(Vector3(389.07, -5763.38, 725.44))
-
 def _addMenuItem(menu, label, call, checked=None):
   #Adds menu item, checkable optional
   mi = menu.addButton(label, call)
@@ -93,9 +86,15 @@ def _addCommandMenuItem(menu, label, command):
   #Adds a menu item to issue a command to the control server
   return _addMenuItem(menu, label, "_sendCommand('"  + command + "')")
 
-def _addObjectMenuItem(name, state):
-  #Adds a toggle menu item to hide/show object
+def _addObjectMenuItem(name=None, state=False):
   global objectMenu, objmnu
+  #Clear?
+  if name == None:
+      c = objmnu.getContainer()
+      for name in objectMenu:
+          c.removeChild(objectMenu[name].getWidget())
+      return
+  #Adds a toggle menu item to hide/show object
   mitem = objmnu.addButton(name, "_toggleObject('"  + name + "')")
   mitem.getButton().setCheckable(True)
   mitem.getButton().setChecked(state)
@@ -106,9 +105,19 @@ def _addFileMenuItem(filename):
   global filemnu
   mitem = filemnu.addButton(filename, "_sendCommand('file "  + filename + "')")
 
+def _populateFileMenu():
+  #Clear first
+  global filemnu
+  c = filemnu.getContainer()
+  for idx in range(c.getNumChildren()):
+    item = c.getChildByIndex(idx)
+    c.removeChild(item)
+  #Populate the files menu with any json files (TODO: *.py, *.script?)
+  for file in glob.glob("*.json"):
+      _addFileMenuItem(file)
+
 def onUpdate(frame, t, dt):
   global animate, cmds, mnulabels, time
-  #print getDefaultCamera().getPosition()
   if animate > 0:
     elapsed = t - time
     fps = (10.0 - animate) * 4.0
@@ -160,6 +169,7 @@ objmnu = menu.addSubMenu("Objects")
 objmnu.addLabel("Toggle Objects")
 filemnu = menu.addSubMenu("Files")
 filemnu.addLabel("Load files")
+_addMenuItem(menu, "Save State", "_lvr.saveState()")
 _addSlider(menu, "Point Size", "_setPointSize(%value%)", 50, 1)
 _addCommandMenuItem(menu, "Scale points up", "scale points up")
 _addCommandMenuItem(menu, "Scale points down", "scale points down")
@@ -169,8 +179,6 @@ _addCommandMenuItem(menu, "Next Model", "model down")
 _addSlider(menu, "Animate", "_setFrameRate(%value%)", 10, 0)
 #_addCommandMenuItem(menu, "Toggle Model Rotate", "")
 #_setFrameRate(8)
-#_addMenuItem(menu, "Save Position", "_getPosition()")
-#_addMenuItem(menu, "Restore Position", "_setPosition()")
 
 im = loadImage("logo.jpg")
 if im:
@@ -184,9 +192,30 @@ setUpdateFunction(onUpdate)
 queueCommand(":freefly")
 
 #Create the viewer
-print lavavu.__file__
-lv = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
+lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
 
 #Pass our LavaVu instance to LavaVR and init
-LavaVR.initialize(lv.app)
+_lvr = LavaVR.initialize(_lvu.app)
+
+#Passed working directory and script as args to run
+import sys
+if len(sys.argv) > 0:
+    wd, fn = os.path.split(sys.argv[0])
+    if len(wd):
+        os.chdir(wd)
+    if len(fn) == 0:
+        fn = "init.py"
+    if not os.path.exists(fn) or not os.path.isfile(fn):
+        fn = "init.script"
+
+    print "Running " + fn + " from " + wd
+    filename, file_extension = os.path.splitext(fn)
+    if file_extension == '.py':
+        script = open(fn).read()
+        #Hack to swap any returned viewer creation with LVR instance
+        script = script.replace('lavavu.Viewer', '_lvu #lavavu.Viewer')
+        exec(script, globals())
+    else:
+        _lvu.file(fn)
+
 

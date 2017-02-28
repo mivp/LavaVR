@@ -3,7 +3,7 @@ DIR=$(pwd)
 LV=$(which LavaVR.sh)
 LVDIR=$(dirname "${LV}")
 echo "Found LavaVR in ${LVDIR}"
-cd ${LVDIR}
+echo "Running from ${DIR}"
 
 #Cave only
 if [ -d /cave ]; then 
@@ -20,32 +20,7 @@ export PYTHONPATH=${LVDIR}/LavaVu:${PYTHONPATH}
 CMD=orun
 #CMD="gdb --args orun"
 
-#Run a python script or a lavavu script by extension
-function run
-{
-  file=$1
-  DIR=$2
-  echo "Running ${file} from ${DIR}"
-  file_ext=${file##*.}
-  if [ ${file_ext} = "py" ]
-  then
-    echo "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
-    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); exec(open('${file}').read(), globals())"
-    #${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); queueCommand(':r ${file}');"
-  else
-    echo "os.chdir('${DIR}'); lv.file('${file}')"
-    ${CMD} -s LavaVR.py -x "os.chdir('${DIR}'); lv.file('${file}')"
-  fi
-}
-
-#Use first command line arg or init.script / init.py
-file=${1:-init.py}
-path="${DIR}/$file"
-echo $path
-if [ -f "$path" ]
-then
-  run ${file} ${DIR}
-else
-  run init.script ${DIR}
-fi
+#Use first command line arg
+file=${1}
+${CMD} -s ${LVDIR}/LavaVR.py ${DIR}/${file}
 

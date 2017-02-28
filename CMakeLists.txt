@@ -36,10 +36,19 @@ target_link_libraries(${MODULE_NAME}
         LavaVu
         )
 
+#Enable/disable debug build
+set (DEBUG 1)
+if (${DEBUG})
+  set (LVFLAGS "CONFIG=debug LIBPNG=0 TIFF=1 VIDEO=0 X11=1")
+  add_definitions(-DDEBUG -g)
+else()
+  set (LVFLAGS "LIBPNG=0 TIFF=1 VIDEO=0 X11=1")
+  add_definitions(-DNDEBUG -O3)
+endif()
+
 add_custom_target(
    LavaVu
-   #COMMAND $(MAKE) CONFIG=debug LIBPNG=0 TIFF=1 VIDEO=0 X11=1 SHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/"
-   COMMAND $(MAKE) LIBPNG=0 TIFF=1 VIDEO=0 X11=1 SHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/"
+   COMMAND $(MAKE) ${LVFLAGS} SHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/"
    COMMAND $(MAKE) swig
    WORKING_DIRECTORY LavaVu
 )
@@ -49,11 +58,8 @@ add_dependencies(LavaVR LavaVu)
 #######################################################################################################################
 # Setup compile info
 
-#add_definitions(-DDEBUG -g)
-add_definitions(-DNDEBUG -O3)
 add_definitions(-Wno-deprecated-declarations)
 #add_library(common OBJECT ${srcs})
-
 
 #------------------------------------------------------------------------------
 # DO NOT MODIFY ANYTHING BELOW AFTER THIS LINE
