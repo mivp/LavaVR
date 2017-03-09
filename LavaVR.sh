@@ -5,6 +5,9 @@ LVDIR=$(dirname "${LV}")
 echo "Found LavaVR in ${LVDIR}"
 echo "Running from ${DIR}"
 
+#Kill existing
+orun -K
+
 #Cave only
 if [ -d /cave ]; then 
   #/cave/sabi.js/scripts/GL-highperformance
@@ -21,6 +24,5 @@ CMD=orun
 #CMD="gdb --args orun"
 
 #Use first command line arg
-file=${1}
-${CMD} -s ${LVDIR}/LavaVR.py ${DIR}/${file}
+${CMD} -s ${LVDIR}/LavaVR.py -x "loadScript('${DIR}/${1}')"
 

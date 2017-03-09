@@ -37,7 +37,7 @@ target_link_libraries(${MODULE_NAME}
         )
 
 #Enable/disable debug build
-set (DEBUG 1)
+set (DEBUG 0)
 if (${DEBUG})
   set (LVFLAGS "CONFIG=debug LIBPNG=0 TIFF=1 VIDEO=0 X11=1")
   add_definitions(-DDEBUG -g)

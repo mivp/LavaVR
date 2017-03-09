@@ -41,6 +41,13 @@ def _toggleObject(name):
   else:
     _sendCommand('hide "' + name + '"');
 
+def _setZScale(level):
+  global mnulabels
+  if level < 1: level = 1
+  _sendCommand('scale z ' + str(level))
+  mnulabels["Height Scale"].setText("Height Scale: " + str(level))
+
+
 def _setPointSize(sizeLevel):
   global mnulabels
   _sendCommand('scale points ' + str(sizeLevel))
@@ -96,7 +103,6 @@ def _populateObjectMenu():
   c = objmnu.getContainer()
   for name in objectMenu:
       c.removeChild(objectMenu[name].getWidget())
-  global _lvu
   for name in _lvu.objects:
       _addObjectMenuItem(str(name), _lvu.objects[name]["visible"])
 
@@ -109,11 +115,12 @@ def _populateFileMenu():
   #Clear first
   global filemnu
   c = filemnu.getContainer()
-  for idx in range(1,c.getNumChildren()):
+  #First 2 entries fixed..
+  for idx in range(2,c.getNumChildren()):
     item = c.getChildByIndex(idx)
     c.removeChild(item)
   #Populate the files menu with any json files (TODO: *.py, *.script?)
-  for file in glob.glob("*.json"):
+  for file in sorted(glob.glob("*.json")):
       _addFileMenuItem(file)
 
 def onUpdate(frame, t, dt):
@@ -154,30 +161,27 @@ def onEvent():
       else:
         _setFrameRate(saveAnimate)
 
+def toggleHeadTracking(camera):
+  camera.setTrackingEnabled(not camera.isTrackingEnabled())
+
 #LavaVu menu
 mm = MenuManager.createAndInitialize()
 menu = mm.getMainMenu()
 
-#Monash menu
-try:
-    import MonashMenu
-    MonashMenu.addMonashMenu(menu)
-except:
-    pass
-
 objmnu = menu.addSubMenu("Objects")
 objmnu.addLabel("Toggle Objects")
-filemnu = menu.addSubMenu("Files")
-filemnu.addLabel("Load files")
-_addMenuItem(menu, "Save State", "_lvr.saveState()")
-_addSlider(menu, "Point Size", "_setPointSize(%value%)", 50, 1)
-_addCommandMenuItem(menu, "Scale points up", "scale points up")
-_addCommandMenuItem(menu, "Scale points down", "scale points down")
+filemnu = menu.addSubMenu("State")
+_addMenuItem(filemnu, "Save Default State", "_lvr.saveDefaultState()")
+_addMenuItem(filemnu, "Save New State", "_lvr.saveNewState()")
+_addSlider(menu, "Height Scale", "_setZScale(%value%)", 10, 1)
+_addSlider(menu, "Point Size", "_setPointSize(%value%)", 20, 1)
+#_addCommandMenuItem(menu, "Scale points up", "scale points up")
+#_addCommandMenuItem(menu, "Scale points down", "scale points down")
 _addSlider(menu, "Transparency", "_setTransparency(%value%)", 10, 0)
-_addCommandMenuItem(menu, "Point Type", "pointtype all")
+#_addCommandMenuItem(menu, "Point Type", "pointtype all")
 _addCommandMenuItem(menu, "Next Model", "model down")
 _addSlider(menu, "Animate", "_setFrameRate(%value%)", 10, 0)
-#_addCommandMenuItem(menu, "Toggle Model Rotate", "")
+mi=_addMenuItem(menu,"Toggle Head Tracking", "toggleHeadTracking(getDefaultCamera())",getDefaultCamera().isTrackingEnabled())
 #_setFrameRate(8)
 
 im = loadImage("logo.jpg")
@@ -189,7 +193,6 @@ if im:
 setEventFunction(onEvent)
 setUpdateFunction(onUpdate)
 
-queueCommand(":freefly")
 
 #Create the viewer
 lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
@@ -197,14 +200,11 @@ lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, ini
 #Pass our LavaVu instance to LavaVR and init
 _lvr = LavaVR.initialize(_lvu.app)
 
-#Passed working directory and script as args to run
-import sys
-if len(sys.argv) > 0:
-    wd, fn = os.path.split(sys.argv[0])
+#Load a script given path
+def loadScript(path="init.py"):
+    wd, fn = os.path.split(path)
     if len(wd):
         os.chdir(wd)
-    if len(fn) == 0:
-        fn = "init.py"
     if not os.path.exists(fn) or not os.path.isfile(fn):
         fn = "init.script"
 
@@ -212,10 +212,20 @@ if len(sys.argv) > 0:
     filename, file_extension = os.path.splitext(fn)
     if file_extension == '.py':
         script = open(fn).read()
-        #Hack to swap any returned viewer creation with LVR instance
+        #Hack the script to use existing lavavu module and instance
+        script = script.replace('import lavavu', '#import lavavu')
         script = script.replace('lavavu.Viewer', '_lvu #lavavu.Viewer')
         exec(script, globals())
-    else:
+    elif os.path.exists(fn):
         _lvu.file(fn)
 
+#Passed working directory and script as args to run
+import sys
+if hasattr(sys, 'argv') and len(sys.argv) > 0:
+    loadScript(sys.argv[0])
+
+#Load initial state
+queueCommand("lv.file('state.json')")
+
+queueCommand(":freefly")
 

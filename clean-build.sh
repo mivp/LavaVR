@@ -1,5 +1,5 @@
 #!/bin/bash
-#git submodule update --init
+git submodule update --init
 cd LavaVu
 make clean
 cd ..

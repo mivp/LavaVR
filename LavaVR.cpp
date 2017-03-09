@@ -11,6 +11,9 @@
 #include "LavaVu/src/LavaVu.h"
 #include "LavaVu/src/Server.h"
 #include <dirent.h>
+#include <iostream>
+#include <iomanip>
+#include <ctime>
 
 using namespace omega;
 using namespace omegaToolkit;
@@ -87,7 +90,10 @@ public:
   
   virtual void handleEvent(const Event& evt);
   virtual void updateState();
-  virtual void saveState();
+  virtual void updateMenu();
+  virtual void saveState(std::string statefile="");
+  virtual void saveDefaultState();
+  virtual void saveNewState();
   virtual void cameraInit();
   virtual void cameraRestore();
   virtual void cameraReset();
@@ -133,7 +139,8 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Transfer LavaVu camera settings to Omegalib
       app->cameraInit();
 
-      app->updateState(); //Object menu/camera
+      app->updateState();
+      app->updateMenu();
 
       //Disable auto-sort
       app->glapp->drawstate.globals["sort"] = 0;
@@ -155,7 +162,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     app->commands = app->glapp->viewer->commands;
     //Update state after commands are processed
     if (comlen > app->commands.size() && app->commands.size() == 0)
-      app->updateState(); //Object menu/camera
+      app->updateState();
     comlen = app->commands.size();
 
     //Update status label
@@ -183,12 +190,15 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     else
        app->statusLabel->setAlpha(alpha * 0.95);
 
-
     //Apply the model rotation/scaling
     View* view = app->glapp->aview;   
+    //view->apply(false); //Disable focal point translate
     view->apply();
 
     glEnable(GL_BLEND);
+
+    //Hack to undo the Y offset
+    glTranslatef(0, 2, 0);
 
     //Draw overlay on first screen only
     if (context.tile->isInGrid)
@@ -219,19 +229,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void LavaVuApplication::updateState()
 {
-  //Menu items to hide/show all objects
-  Model* amodel = glapp->amodel;
-  PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
-  //Populate file menu
-  pi->eval("_populateFileMenu()");
-  //Populate objects menu
-  pi->eval("_populateObjectMenu()");
-
   //Check for global camera loaded
   if (glapp->drawstate.globals.count("camera") > 0)
   {
     json scam = glapp->drawstate.globals["camera"];
-    std::cout << " ______\n" << glapp->drawstate.globals << "\n______" << std::endl;
+    //std::cout << " ______\n" << glapp->drawstate.globals << "\n______" << std::endl;
     json pos = scam["position"];
     json o = scam["orientation"];
 
@@ -239,7 +241,14 @@ void LavaVuApplication::updateState()
     cam->setOrientation(o[3], o[0], o[1], o[2]);
     cam->setPosition(pos[0], pos[1], pos[2]);
 
-    glapp->drawstate.globals.erase("camera");
+    PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
+    //std::stringstream cmd;
+    //cmd << "getDefaultCamera().setOrientation(Quaternion(" << o[3] << "," << o[0] << "," << o[1] << "," << o[2] << "))";
+    //std::cout << "O: " << cmd.str() << std::endl;
+    //pi->queueCommand(cmd.str());
+    //pi->queueCommand(cmd.str());
+
+    //glapp->drawstate.globals.erase("camera");
   }
 
   //Apply clip planes
@@ -247,10 +256,27 @@ void LavaVuApplication::updateState()
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
   float near_clip = view->properties["near"];
   float far_clip = view->properties["far"];
-  cam->setNearFarZ(near_clip, far_clip);
+  cam->setNearFarZ(0.005*near_clip, far_clip); //Set clip plane closer for CAVE use
+  ///Setting clip planes can kill menu! Need to check using MenuManager::getDefaultMenuDistance()
+  //MenuManager* mm = MenuManager::createAndInitialize();
+  //float menuDist = mm->getDefaultMenuDistance();
+  //Menu* main = mm->getMainMenu(); //float menuDist = mm->getDefaultMenuDistance();
+
+  //Set background colour
+  Colour& bg = view->background;
+  cam->setBackgroundColor(Color(bg.rgba[0]/255.0, bg.rgba[1]/255.0, bg.rgba[2]/255.0, 0));
 }
 
-void LavaVuApplication::saveState()
+void LavaVuApplication::updateMenu()
+{
+  PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
+  //Populate file menu
+  pi->queueCommand("_populateFileMenu()");
+  //Populate objects menu
+  pi->queueCommand("_populateObjectMenu()");
+}
+
+void LavaVuApplication::saveState(std::string statefile)
 {
   //Get camera positon, orientation and LavaVu model rotation
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
@@ -267,10 +293,34 @@ void LavaVuApplication::saveState()
   glapp->drawstate.globals["camera"] = scam;
 
   //Recently saved states, can be cycled through with Y(yellow)
-  states.push_back(glapp->getState());
+  std::string state = glapp->getState();
+  states.push_back(state);
 
-  //Write state to default state file
-  glapp->queueCommands("save state.json");
+  if (statefile.length())
+  {
+    std::ofstream file(statefile);
+    if (file.good())
+    {
+      file << state;
+      updateMenu();
+    }
+    else
+      std::cout << "Unable to write to file: " << statefile << std::endl;
+  }
+}
+
+void LavaVuApplication::saveDefaultState()
+{
+  saveState("state.json");
+}
+
+void LavaVuApplication::saveNewState()
+{
+  std::stringstream ss;
+  auto t = std::time(nullptr);
+  auto tm = *std::localtime(&t);
+  ss << std::put_time(&tm, "%d-%m-%Y-%H-%M.json");
+  saveState(ss.str());
 }
 
 void LavaVuApplication::cameraInit()
@@ -293,17 +343,6 @@ void LavaVuApplication::cameraInit()
 
   //Default eye separation, TODO: set this via LavaVu property controllable via init.script
   cam->setEyeSeparation(view->eye_sep_ratio);
-
-  ///Setting clip planes can kill menu! Need to check using MenuManager::getDefaultMenuDistance()
-  //MenuManager* mm = MenuManager::createAndInitialize();
-  //float menuDist = mm->getDefaultMenuDistance();
-  //Menu* main = mm->getMainMenu(); //float menuDist = mm->getDefaultMenuDistance();
-  //main->addButton("SetCamera", "getDefaultCamera().setPosition(Vector3(0, 0, 0))"));
-
-  //NOTE: Setting near clip too close is bad for eyes, too far kills negative parallax stereo
-  float near_clip = view->properties["near"];
-  float far_clip = view->properties["far"];
-  cam->setNearFarZ(near_clip, far_clip);
 
   int coordsys = view->properties["coordsystem"];
   cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * coordsys), Vector3f(0,1,0));
@@ -444,7 +483,12 @@ void LavaVuApplication::handleEvent(const Event& evt)
       buttons << "ButtonD ";
     std::string buttonstr = buttons.str();
     if (buttonstr.length() > 0)
+    {
        std::cout << buttonstr << " : Analogue LR: " << evt.getAxis(0) << " UD: " << evt.getAxis(1) << std::endl;
+      //Clear loaded camera data on button press
+      if (glapp->drawstate.globals.count("camera") > 0)
+        glapp->drawstate.globals.erase("camera");
+    }
 
     int x = evt.getPosition().x();
     int y = evt.getPosition().y();
@@ -461,9 +505,13 @@ void LavaVuApplication::handleEvent(const Event& evt)
        {
          menuOpen = false;
          printf("Menu closed\n");
+         //Load any changes to files/objects
+         updateMenu();
        }
        else
        {
+         //Save state in list on menu close press without menu open
+         saveState();
          //Depth sort geometry?
          //glapp->aview->sort = true;
        }
@@ -683,7 +731,8 @@ BOOST_PYTHON_MODULE(LavaVR)
 {
   // OmegaViewer
   PYAPI_REF_BASE_CLASS(LavaVuApplication)
-      PYAPI_METHOD(LavaVuApplication, saveState)
+      PYAPI_METHOD(LavaVuApplication, saveDefaultState)
+      PYAPI_METHOD(LavaVuApplication, saveNewState)
       ;
 
   def("initialize", initialize, PYAPI_RETURN_REF);
