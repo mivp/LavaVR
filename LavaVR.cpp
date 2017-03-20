@@ -641,7 +641,6 @@ void LavaVuApplication::handleEvent(const Event& evt)
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
            //Default is model rotate
-           bool sweep = glapp->drawstate.global("sweep");
            if (!stickTimestep && stickRotate)
            {
              std::stringstream rcmd;
@@ -773,6 +772,7 @@ BOOST_PYTHON_MODULE(LavaVR)
       PYAPI_METHOD(LavaVuApplication, saveNewState)
       .def_readwrite("modelCam", &LavaVuApplication::modelCam)
       .def_readwrite("stickRotate", &LavaVuApplication::stickRotate)
+      .def_readwrite("stickTimestep", &LavaVuApplication::stickTimestep)
       .def_readwrite("clearDepthBefore", &LavaVuApplication::clearDepthBefore)
       .def_readwrite("clearDepthAfter", &LavaVuApplication::clearDepthAfter)
       ;

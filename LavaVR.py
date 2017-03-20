@@ -203,7 +203,7 @@ setUpdateFunction(onUpdate)
 lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
 
 #Pass our LavaVu instance to LavaVR and init
-_lvr = LavaVR.initialize(_lvu.app)
+lvr = _lvr = LavaVR.initialize(_lvu.app)
 
 #Load a script given path
 def loadScript(path="init.py"):
