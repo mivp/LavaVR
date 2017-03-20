@@ -41,6 +41,13 @@ public:
   LavaVu* glapp;
   bool isMaster;
 
+  //Python exposed flags
+  bool modelCam;
+  bool stickRotate;
+  bool stickTimestep;
+  bool clearDepthBefore;
+  bool clearDepthAfter;
+
   //Copy of commands
   std::deque<std::string> commands;
   //Widgets
@@ -54,6 +61,13 @@ public:
     glapp = NULL; 
     SystemManager* sys = SystemManager::instance();
     isMaster = sys->isMaster();
+
+    //Python exposed flags
+    modelCam = true;
+    stickRotate = true;
+    stickTimestep = false;
+    clearDepthBefore = false;
+    clearDepthAfter = false;
   }
 
   virtual void initialize()
@@ -145,7 +159,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       //Disable auto-sort
       app->glapp->drawstate.globals["sort"] = 0;
 
-      //Default nav speed
+      /*/Default nav speed
       omega::Camera* cam = Engine::instance()->getDefaultCamera();
       float navSpeed = app->glapp->drawstate.global("navspeed");
       CameraController* cc = cam->getController();
@@ -154,7 +168,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       float rotate[4], translate[3], focus[3];
       view->getCamera(rotate, translate, focus);
       if (navSpeed <= 0.0) navSpeed = abs(translate[2]) * 0.05;
-      cc->setSpeed(navSpeed);
+      cc->setSpeed(navSpeed);*/
     }
 
     //Copy commands before consumed
@@ -191,11 +205,17 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
        app->statusLabel->setAlpha(alpha * 0.95);
 
     //Apply the model rotation/scaling
-    View* view = app->glapp->aview;   
-    //view->apply(false); //Disable focal point translate
-    view->apply();
+    if (app->modelCam)
+    {
+      View* view = app->glapp->aview;   
+      //view->apply(false); //Disable focal point translate
+      view->apply();
+    }
 
     glEnable(GL_BLEND);
+
+    //Optional clear depth 
+    if (app->clearDepthBefore) glClear(GL_DEPTH_BUFFER_BIT);
 
     //Hack to undo the Y offset
     glTranslatef(0, 2, 0);
@@ -215,6 +235,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
         app->glapp->viewer->display();
       }
     }
+
+    //Optional clear depth 
+    if (app->clearDepthAfter) glClear(GL_DEPTH_BUFFER_BIT);
 
     client->getRenderer()->endDraw();
 
@@ -617,33 +640,48 @@ void LavaVuApplication::handleEvent(const Event& evt)
         float analogUD = evt.getAxis(1);
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
-           //Default is model rotate, TODO: enable timestep sweep mode via menu option
+           //Default is model rotate
            bool sweep = glapp->drawstate.global("sweep");
-           if (!sweep)
+           if (!stickTimestep && stickRotate)
            {
-               //L2 Trigger (large)
-               if (abs(analogUD) > 0.02)
-               {
-                  std::stringstream rcmd;
-                  rcmd << "rotate x " << analogUD;
-                  glapp->parseCommands(rcmd.str());
-               }
-               if (abs(analogLR) > 0.02)
-               {
-                  std::stringstream rcmd;
-                  rcmd << "rotate y " << analogLR;
-                  glapp->parseCommands(rcmd.str());
-               }
-               //evt.setProcessed();
-            }
-            else if (abs(analogUD) > abs(analogLR))
-            {
-               if (analogUD > 0.02)
-                 glapp->parseCommands("timestep down");
-               else if (analogUD < 0.02)
-                 glapp->parseCommands("timestep up");
-               //evt.setProcessed();
-            }
+             std::stringstream rcmd;
+             if (abs(analogUD) > 0.02)
+             {
+                rcmd << "rotate x " << analogUD;
+                glapp->parseCommands(rcmd.str());
+             }
+             if (abs(analogLR) > 0.02)
+             {
+                std::stringstream rcmd;
+                rcmd << "rotate y " << analogLR;
+                glapp->parseCommands(rcmd.str());
+             }
+             //evt.setProcessed();
+           }
+           else if (!stickTimestep)
+           {
+             //Yaw/pitch
+             if (abs(analogUD) > 0.02 && abs(analogUD) > abs(analogLR))
+             {
+                omega::Camera* cam = Engine::instance()->getDefaultCamera();
+                cam->pitch(analogUD*0.1);
+             }
+             else if (abs(analogLR) > 0.02)
+             {
+                omega::Camera* cam = Engine::instance()->getDefaultCamera();
+                cam->yaw(analogLR*0.1);
+             }
+             //evt.setProcessed();
+           }
+           else if (abs(analogUD) > abs(analogLR))
+           {
+             //Timestep sweep
+             if (analogUD > 0.02)
+               glapp->parseCommands("timestep down");
+             else if (analogUD < 0.02)
+               glapp->parseCommands("timestep up");
+             //evt.setProcessed();
+           }
         }
     }
   }
@@ -733,6 +771,10 @@ BOOST_PYTHON_MODULE(LavaVR)
   PYAPI_REF_BASE_CLASS(LavaVuApplication)
       PYAPI_METHOD(LavaVuApplication, saveDefaultState)
       PYAPI_METHOD(LavaVuApplication, saveNewState)
+      .def_readwrite("modelCam", &LavaVuApplication::modelCam)
+      .def_readwrite("stickRotate", &LavaVuApplication::stickRotate)
+      .def_readwrite("clearDepthBefore", &LavaVuApplication::clearDepthBefore)
+      .def_readwrite("clearDepthAfter", &LavaVuApplication::clearDepthAfter)
       ;
 
   def("initialize", initialize, PYAPI_RETURN_REF);

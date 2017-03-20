@@ -49,7 +49,6 @@ endif()
 add_custom_target(
    LavaVu
    COMMAND $(MAKE) ${LVFLAGS} SHADER_PATH="${CMAKE_BINARY_DIR}/LavaVu/src/shaders/"
-   COMMAND $(MAKE) swig
    WORKING_DIRECTORY LavaVu
 )
 
