@@ -1,6 +1,7 @@
 #######################################
 # init.py : LavaVu OmegaLib init script
 #######################################
+print " -------------------------- Loading LavaVR -------------------------- "
 import LavaVu.lavavu as lavavu
 import LavaVR
 from omega import *
@@ -103,8 +104,10 @@ def _populateObjectMenu():
   c = objmnu.getContainer()
   for name in objectMenu:
       c.removeChild(objectMenu[name].getWidget())
-  for name in _lvu.objects:
-      _addObjectMenuItem(str(name), _lvu.objects[name]["visible"])
+  #Get list sorted by id
+  objlist = sorted(_lvu.objects.values(), key=operator.attrgetter('id'))
+  for obj in objlist:
+      _addObjectMenuItem(str(obj["name"]), obj["visible"])
 
 def _addFileMenuItem(filename):
   #Adds menu item to run a script
@@ -120,7 +123,7 @@ def _populateFileMenu():
     item = c.getChildByIndex(idx)
     c.removeChild(item)
   #Populate the files menu with any json files (TODO: *.py, *.script?)
-  for file in sorted(glob.glob("*.json")):
+  for file in sorted(glob.glob("*.json"), reverse=True):
       _addFileMenuItem(file)
 
 def onUpdate(frame, t, dt):
@@ -182,6 +185,8 @@ _addSlider(menu, "Transparency", "_setTransparency(%value%)", 10, 0)
 _addCommandMenuItem(menu, "Next Model", "model down")
 _addSlider(menu, "Animate", "_setFrameRate(%value%)", 10, 0)
 mi=_addMenuItem(menu,"Toggle Head Tracking", "toggleHeadTracking(getDefaultCamera())",getDefaultCamera().isTrackingEnabled())
+mi=_addMenuItem(menu,"Reset Orientation", "getDefaultCamera().setOrientation(Quaternion(0.5, 0.5, 0.5, 0.5))")
+
 #_setFrameRate(8)
 
 im = loadImage("logo.jpg")
