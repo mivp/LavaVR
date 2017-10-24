@@ -179,6 +179,18 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->updateState();
     comlen = app->commands.size();
 
+    //TODO: make this a function of OpenGLViewer
+    while (app->glapp->viewer->commands.size() > 0)
+    {
+        //Critical section
+        pthread_mutex_lock(&app->glapp->viewer->cmd_mutex);
+        std::string cmd = app->glapp->viewer->commands.front();
+        app->glapp->viewer->commands.pop_front();
+        pthread_mutex_unlock(&app->glapp->viewer->cmd_mutex);
+
+        app->glapp->parseCommands(cmd);
+    }
+
     //Update status label
     if (app->statusLabel->getText() != app->glapp->message)
     {
@@ -225,14 +237,17 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     {
       if (context.tile->gridX == 0 && context.tile->gridY == 0)
       {
-        app->glapp->viewer->display();
-        app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
+        //app->glapp->viewer->display();
+        app->glapp->display();
+        if (context.eye == DrawContext::EyeCyclop)
+            app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
       }
       else
       {
         app->glapp->objectlist = false;  //Disable text output on all but first tile
         app->glapp->status = false;
-        app->glapp->viewer->display();
+        app->glapp->display();
+        //app->glapp->viewer->display();
       }
     }
 
@@ -241,8 +256,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 
     client->getRenderer()->endDraw();
 
-    //Process timer based commands
-    app->glapp->viewer->pollInput();
+    //Process timer based commands (only once per frame)
+    if (context.eye == DrawContext::EyeCyclop)
+        app->glapp->viewer->pollInput();
   }
   else if(context.task == DrawContext::OverlayDrawTask)
   {
@@ -650,15 +666,15 @@ void LavaVuApplication::handleEvent(const Event& evt)
              if (abs(analogUD) > 0.02)
              {
                 rcmd << "rotate x " << analogUD;
-                //glapp->queueCommands(rcmd.str());
-                glapp->parseCommands(rcmd.str());
+                glapp->queueCommands(rcmd.str());
+                //glapp->parseCommands(rcmd.str());
              }
              if (abs(analogLR) > 0.02)
              {
                 std::stringstream rcmd;
                 rcmd << "rotate y " << analogLR;
-                //glapp->queueCommands(rcmd.str());
-                glapp->parseCommands(rcmd.str());
+                glapp->queueCommands(rcmd.str());
+                //glapp->parseCommands(rcmd.str());
              }
              //evt.setProcessed();
            }
@@ -714,11 +730,14 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
       glapp->viewer->commands.clear();
       std::stringstream iss(commandstr);
       std::string line;
+
+    pthread_mutex_lock(&glapp->viewer->cmd_mutex);
       while(std::getline(iss, line))
       {
-         //glapp->viewer->commands.push_back(line);
-         glapp->queueCommands(line);
+         glapp->viewer->commands.push_back(line);
+         //glapp->queueCommands(line);
       }
+    pthread_mutex_unlock(&glapp->viewer->cmd_mutex);
    }
 }
 
