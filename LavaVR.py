@@ -110,7 +110,7 @@ def _populateObjectMenu():
       _addObjectMenuItem(str(obj["name"]), obj["visible"])
 
 def _addFileMenuItem(filename):
-  #Adds menu item to run a script
+  #Adds menu item to load a state or script file
   global filemnu
   mitem = filemnu.addButton(filename, "_sendCommand('file "  + filename + "')")
 
@@ -122,9 +122,23 @@ def _populateFileMenu():
   for idx in range(2,c.getNumChildren()):
     item = c.getChildByIndex(idx)
     c.removeChild(item)
-  #Populate the files menu with any json files (TODO: *.py, *.script?)
+  #Populate the files menu with any json files
   for file in sorted(glob.glob("*.json"), reverse=True):
       _addFileMenuItem(file)
+
+  #Skip the loading scripts
+  skip = ["init.script"]
+  if hasattr(sys, 'argv') and len(sys.argv) > 0 and file == sys.argv[0]:
+    skip += [sys.argv[0]]
+
+  #Populate the files menu with any script files
+  import os
+  for file in sorted(glob.glob("*.script")):
+      if os.path.basename(file) not in skip:
+          _addFileMenuItem(file)
+  for file in sorted(glob.glob("*.py")):
+      if os.path.basename(file) not in skip:
+          _addFileMenuItem(file)
 
 def onUpdate(frame, t, dt):
   global animate, cmds, mnulabels, time
@@ -173,7 +187,7 @@ menu = mm.getMainMenu()
 
 objmnu = menu.addSubMenu("Objects")
 objmnu.addLabel("Toggle Objects")
-filemnu = menu.addSubMenu("State")
+filemnu = menu.addSubMenu("State/Scripts")
 _addMenuItem(filemnu, "Save Default State", "_lvr.saveDefaultState()")
 _addMenuItem(filemnu, "Save New State", "_lvr.saveNewState()")
 _addSlider(menu, "Height Scale", "_setZScale(%value%)", 10, 1)
