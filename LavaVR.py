@@ -200,6 +200,9 @@ setUpdateFunction(onUpdate)
 
 
 #Create the viewer
+port = 8080
+if not isMaster():
+    port = 0
 lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, initscript=False, usequeue=True)
 
 #Pass our LavaVu instance to LavaVR and init

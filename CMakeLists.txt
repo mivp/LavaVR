@@ -38,14 +38,15 @@ target_link_libraries(${MODULE_NAME}
 
 #Just use the LavaVu build in LavaVu dir as is
 #Enable/disable debug build
-#set (DEBUG 0)
-#if (${DEBUG})
+set (DEBUG 0)
+#set (DEBUG 1)
+if (${DEBUG})
 #  set (LVFLAGS "CONFIG=debug LIBPNG=0 TIFF=1 VIDEO=0 X11=1")
-#  add_definitions(-DDEBUG -g)
-#else()
+  add_definitions(-DDEBUG -g)
+else()
 #  set (LVFLAGS "LIBPNG=0 TIFF=1 VIDEO=0 X11=1")
-#  add_definitions(-DNDEBUG -O3)
-#endif()
+  add_definitions(-DNDEBUG -O3)
+endif()
 
 #add_custom_target(
 #   LavaVu
