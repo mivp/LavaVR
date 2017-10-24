@@ -650,13 +650,15 @@ void LavaVuApplication::handleEvent(const Event& evt)
              if (abs(analogUD) > 0.02)
              {
                 rcmd << "rotate x " << analogUD;
-                glapp->queueCommands(rcmd.str());
+                //glapp->queueCommands(rcmd.str());
+                glapp->parseCommands(rcmd.str());
              }
              if (abs(analogLR) > 0.02)
              {
                 std::stringstream rcmd;
                 rcmd << "rotate y " << analogLR;
-                glapp->queueCommands(rcmd.str());
+                //glapp->queueCommands(rcmd.str());
+                glapp->parseCommands(rcmd.str());
              }
              //evt.setProcessed();
            }
