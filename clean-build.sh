@@ -1,8 +1,8 @@
 #!/bin/bash
-git submodule update --init
-cd LavaVu
-make clean
-cd ..
+#git submodule update --init
+#cd LavaVu
+#make clean
+#cd ..
 
 rm -rf CMakeFiles
 rm CMakeCache.txt

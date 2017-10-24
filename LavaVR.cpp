@@ -279,7 +279,7 @@ void LavaVuApplication::updateState()
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
   float near_clip = view->properties["near"];
   float far_clip = view->properties["far"];
-  cam->setNearFarZ(0.005*near_clip, far_clip); //Set clip plane closer for CAVE use
+  //cam->setNearFarZ(0.005*near_clip, far_clip); //Set clip plane closer for CAVE use
   ///Setting clip planes can kill menu! Need to check using MenuManager::getDefaultMenuDistance()
   //MenuManager* mm = MenuManager::createAndInitialize();
   //float menuDist = mm->getDefaultMenuDistance();
@@ -374,6 +374,8 @@ void LavaVuApplication::cameraInit()
 
 void LavaVuApplication::cameraRestore()
 {
+//THIS STILL SEGFAULTS
+return;
   //Cycle through saved camera positions / states
   static int idx = 0;
 
@@ -385,10 +387,11 @@ void LavaVuApplication::cameraRestore()
     return;
   }
 
-  omega::Camera* cam = Engine::instance()->getDefaultCamera();
-  View* view = glapp->aview;
+  //omega::Camera* cam = Engine::instance()->getDefaultCamera();
+  //View* view = glapp->aview;
   //Restore the state data
-  glapp->setState(states[idx]);
+  //glapp->setState(states[idx]);
+  glapp->queueCommands(states[idx]);
   updateState();
 
   //Set next index
@@ -554,13 +557,13 @@ void LavaVuApplication::handleEvent(const Event& evt)
       // std::cout << "L2 Trigger " << std::endl;
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
-        glapp->parseCommands("zoomclip -0.01");
+        glapp->queueCommands("zoomclip -0.01");
         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonRight ))
       {
 
-        glapp->parseCommands("zoomclip 0.01");
+        glapp->queueCommands("zoomclip 0.01");
         //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonUp))
@@ -583,12 +586,12 @@ void LavaVuApplication::handleEvent(const Event& evt)
       //L1 Trigger (small) - Multi-press to fine tune
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
-         glapp->parseCommands("scale all 0.95");
+         glapp->queueCommands("scale all 0.95");
          //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonRight ))
       {
-         glapp->parseCommands("scale all 1.05");
+         glapp->queueCommands("scale all 1.05");
          //evt.setProcessed();
       }
       else if (evt.isButtonDown(Event::ButtonUp))
@@ -622,15 +625,15 @@ void LavaVuApplication::handleEvent(const Event& evt)
     {
         //if (GeomData::opacity < 1.0) GeomData::opacity += 0.05;
         //glapp->redrawViewports();
-        glapp->parseCommands("timestep 0");
+        glapp->queueCommands("timestep 0");
     }
     else if (evt.isButtonDown(Event::ButtonLeft ))
     {
-        glapp->parseCommands("model up");
+        glapp->queueCommands("model up");
     }
     else if (evt.isButtonDown( Event::ButtonRight ))
     {
-        glapp->parseCommands("model down");
+        glapp->queueCommands("model down");
     }
     else
     {
@@ -647,13 +650,13 @@ void LavaVuApplication::handleEvent(const Event& evt)
              if (abs(analogUD) > 0.02)
              {
                 rcmd << "rotate x " << analogUD;
-                glapp->parseCommands(rcmd.str());
+                glapp->queueCommands(rcmd.str());
              }
              if (abs(analogLR) > 0.02)
              {
                 std::stringstream rcmd;
                 rcmd << "rotate y " << analogLR;
-                glapp->parseCommands(rcmd.str());
+                glapp->queueCommands(rcmd.str());
              }
              //evt.setProcessed();
            }
@@ -676,9 +679,9 @@ void LavaVuApplication::handleEvent(const Event& evt)
            {
              //Timestep sweep
              if (analogUD > 0.02)
-               glapp->parseCommands("timestep down");
+               glapp->queueCommands("timestep down");
              else if (analogUD < 0.02)
-               glapp->parseCommands("timestep up");
+               glapp->queueCommands("timestep up");
              //evt.setProcessed();
            }
         }
