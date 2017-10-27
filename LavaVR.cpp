@@ -390,8 +390,6 @@ void LavaVuApplication::cameraInit()
 
 void LavaVuApplication::cameraRestore()
 {
-//THIS STILL SEGFAULTS
-return;
   //Cycle through saved camera positions / states
   static int idx = 0;
 
@@ -406,8 +404,10 @@ return;
   //omega::Camera* cam = Engine::instance()->getDefaultCamera();
   //View* view = glapp->aview;
   //Restore the state data
-  //glapp->setState(states[idx]);
-  glapp->queueCommands(states[idx]);
+  glapp->setState(states[idx]);
+
+  //glapp->queueCommands(states[idx]);
+  //glapp->parseCommands(states[idx]);
   updateState();
 
   //Set next index
@@ -421,11 +421,9 @@ void LavaVuApplication::cameraReset()
   View* view = glapp->aview;
   float rotate[4], translate[3], focus[3];
 
-  view->reset();
-  view->init(true);  //Reset camera to default view of model
+  glapp->queueCommands("reset");
 
   view->getCamera(rotate, translate, focus);
-
   cam->setOrientation(omega::Quaternion(0, 0, 0, 1));
   cam->setPosition(Vector3f(translate[0], translate[1], -translate[2]));
 
@@ -645,11 +643,15 @@ void LavaVuApplication::handleEvent(const Event& evt)
     }
     else if (evt.isButtonDown(Event::ButtonLeft ))
     {
-        glapp->queueCommands("model up");
+        //glapp->queueCommands("model up");
+        glapp->parseCommands("model up");
+        updateMenu();
     }
     else if (evt.isButtonDown( Event::ButtonRight ))
     {
-        glapp->queueCommands("model down");
+        //glapp->queueCommands("model down");
+        glapp->parseCommands("model down");
+        updateMenu();
     }
     else
     {
@@ -665,14 +667,14 @@ void LavaVuApplication::handleEvent(const Event& evt)
              std::stringstream rcmd;
              if (abs(analogUD) > 0.02)
              {
-                rcmd << "rotate x " << analogUD;
+                rcmd << "rotate x " << (analogUD*0.5);
                 glapp->queueCommands(rcmd.str());
                 //glapp->parseCommands(rcmd.str());
              }
              if (abs(analogLR) > 0.02)
              {
                 std::stringstream rcmd;
-                rcmd << "rotate y " << analogLR;
+                rcmd << "rotate y " << (analogLR*0.5);
                 glapp->queueCommands(rcmd.str());
                 //glapp->parseCommands(rcmd.str());
              }
@@ -702,6 +704,28 @@ void LavaVuApplication::handleEvent(const Event& evt)
                glapp->queueCommands("timestep up");
              //evt.setProcessed();
            }
+        }
+        else //Second stick?
+        {
+          //Grab the analog stick horizontal axis
+          float analogLR = evt.getAxis(2);
+          //Grab the analog stick vertical axis
+          float analogUD = evt.getAxis(3);
+          if (abs(analogUD) + abs(analogLR) > 0.01)
+          {
+             //Yaw/pitch
+             if (abs(analogUD) > 0.02 && abs(analogUD) > abs(analogLR))
+             {
+                omega::Camera* cam = Engine::instance()->getDefaultCamera();
+                cam->pitch(analogUD*0.1);
+             }
+             else if (abs(analogLR) > 0.02)
+             {
+                omega::Camera* cam = Engine::instance()->getDefaultCamera();
+                cam->yaw(analogLR*0.1);
+             }
+             //evt.setProcessed();
+          }
         }
     }
   }

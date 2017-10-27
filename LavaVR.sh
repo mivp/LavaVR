@@ -12,7 +12,7 @@ orun -K
 if [ -d /cave ]; then 
   #/cave/sabi.js/scripts/GL-highperformance
   #/cave/sabi.js/scripts/GL-highquality
-  export PATH=/cave/dev/LavaVR/::${PATH}
+  export PATH=/cave/dev/LavaVR/:${PATH}
   source /usr/share/Modules/3.2.10/init/bash
   module unload omegalib
   module load omegalib/13-c++11

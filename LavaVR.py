@@ -114,6 +114,18 @@ def _addFileMenuItem(filename):
   global filemnu
   mitem = filemnu.addButton(filename, "_sendCommand('file "  + filename + "')")
 
+def runScript(filename):
+    script = open(filename).read()
+    script = script.replace('import lavavu', '#import lavavu')
+    script = script.replace('lavavu.Viewer', '_lvu #lavavu.Viewer')
+    exec(script, globals())
+
+def _addScriptMenuItem(filename):
+  #Adds menu item to load a python script
+  global filemnu
+  mitem = filemnu.addButton(filename, "runScript('"  + filename + "')")
+
+
 def _populateFileMenu():
   #Clear first
   global filemnu
@@ -122,23 +134,26 @@ def _populateFileMenu():
   for idx in range(2,c.getNumChildren()):
     item = c.getChildByIndex(idx)
     c.removeChild(item)
-  #Populate the files menu with any json files
-  for file in sorted(glob.glob("*.json"), reverse=True):
-      _addFileMenuItem(file)
 
   #Skip the loading scripts
-  skip = ["init.script"]
+  skip = ["init.script", "init.py"]
   if hasattr(sys, 'argv') and len(sys.argv) > 0 and file == sys.argv[0]:
     skip += [sys.argv[0]]
-
-  #Populate the files menu with any script files
   import os
+
+  #Python files
+  for file in sorted(glob.glob("*.py")):
+      if os.path.basename(file) not in skip:
+          _addScriptMenuItem(file)
+
+  #LavaVu Script files
   for file in sorted(glob.glob("*.script")):
       if os.path.basename(file) not in skip:
           _addFileMenuItem(file)
-  for file in sorted(glob.glob("*.py")):
-      if os.path.basename(file) not in skip:
-          _addFileMenuItem(file)
+
+  #LavaVu json state files
+  for file in sorted(glob.glob("*.json"), reverse=True):
+      _addFileMenuItem(file)
 
 def onUpdate(frame, t, dt):
   global animate, cmds, mnulabels, time
@@ -223,21 +238,19 @@ lv = _lvu = lavavu.Viewer(omegalib=True, hidden=False, quality=1, port=8080, ini
 lvr = _lvr = LavaVR.initialize(_lvu.app)
 
 #Load a script given path
-def loadScript(path="init.py"):
+def loadScript(path=""):
     wd, fn = os.path.split(path)
     if len(wd):
         os.chdir(wd)
     if not os.path.exists(fn) or not os.path.isfile(fn):
         fn = "init.script"
+    if not os.path.exists(fn) or not os.path.isfile(fn):
+        fn = "init.py"
 
     print "Running " + fn + " from " + wd
     filename, file_extension = os.path.splitext(fn)
     if file_extension == '.py':
-        script = open(fn).read()
-        #Hack the script to use existing lavavu module and instance
-        script = script.replace('import lavavu', '#import lavavu')
-        script = script.replace('lavavu.Viewer', '_lvu #lavavu.Viewer')
-        exec(script, globals())
+        runScript(fn)
     elif os.path.exists(fn):
         _lvu.file(fn)
 
