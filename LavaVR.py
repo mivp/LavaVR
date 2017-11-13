@@ -260,7 +260,7 @@ if hasattr(sys, 'argv') and len(sys.argv) > 0:
     loadScript(sys.argv[0])
 
 #Load initial state
-#queueCommand("lv.file('state.json')")
+queueCommand("lv.file('state.json')")
 
 queueCommand(":freefly")
 
