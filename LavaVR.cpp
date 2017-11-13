@@ -216,6 +216,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     else
        app->statusLabel->setAlpha(alpha * 0.95);
 
+    //Hack to undo the Y offset
+    glTranslatef(0, 2, 0);
+
     //Apply the model rotation/scaling
     if (app->modelCam)
     {
@@ -228,9 +231,6 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 
     //Optional clear depth 
     if (app->clearDepthBefore) glClear(GL_DEPTH_BUFFER_BIT);
-
-    //Hack to undo the Y offset
-    glTranslatef(0, 2, 0);
 
     //Draw overlay on first screen only
     if (context.tile->isInGrid)
