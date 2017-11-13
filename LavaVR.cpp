@@ -386,6 +386,9 @@ void LavaVuApplication::cameraInit()
   int coordsys = view->properties["coordsystem"];
   cam->lookAt(Vector3f(focus[0], focus[1], focus[2] * coordsys), Vector3f(0,1,0));
   cam->setPitchYawRoll(Vector3f(0, 0, 0));
+
+  //Initial state load
+  glapp->queueCommands("file state.json");
 }
 
 void LavaVuApplication::cameraRestore()
