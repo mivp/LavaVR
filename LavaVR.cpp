@@ -157,11 +157,11 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
       app->updateMenu();
 
       //Disable auto-sort
-      app->glapp->drawstate.globals["sort"] = 0;
+      //app->glapp->session.globals["sort"] = false;
 
       /*/Default nav speed
       omega::Camera* cam = Engine::instance()->getDefaultCamera();
-      float navSpeed = app->glapp->drawstate.global("navspeed");
+      float navSpeed = app->glapp->session.global("navspeed");
       CameraController* cc = cam->getController();
       View* view = app->glapp->aview;
       //cc->setSpeed(view->model_size * 0.03);
@@ -269,10 +269,10 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 void LavaVuApplication::updateState()
 {
   //Check for global camera loaded
-  if (glapp->drawstate.globals.count("camera") > 0)
+  if (glapp->session.globals.count("camera") > 0)
   {
-    json scam = glapp->drawstate.globals["camera"];
-    //std::cout << " ______\n" << glapp->drawstate.globals << "\n______" << std::endl;
+    json scam = glapp->session.globals["camera"];
+    //std::cout << " ______\n" << glapp->session.globals << "\n______" << std::endl;
     json pos = scam["position"];
     json o = scam["orientation"];
 
@@ -287,7 +287,7 @@ void LavaVuApplication::updateState()
     //pi->queueCommand(cmd.str());
     //pi->queueCommand(cmd.str());
 
-    //glapp->drawstate.globals.erase("camera");
+    //glapp->session.globals.erase("camera");
   }
 
   //Apply clip planes
@@ -329,7 +329,7 @@ void LavaVuApplication::saveState(std::string statefile)
   json scam;
   scam["position"] = {curpos[0], curpos[1], curpos[2]};
   scam["orientation"] = {curo.x(), curo.y(), curo.z(), curo.w()};
-  glapp->drawstate.globals["camera"] = scam;
+  glapp->session.globals["camera"] = scam;
 
   //Recently saved states, can be cycled through with Y(yellow)
   std::string state = glapp->getState();
@@ -529,8 +529,8 @@ void LavaVuApplication::handleEvent(const Event& evt)
     {
        std::cout << buttonstr << " : Analogue LR: " << evt.getAxis(0) << " UD: " << evt.getAxis(1) << std::endl;
       //Clear loaded camera data on button press
-      if (glapp->drawstate.globals.count("camera") > 0)
-        glapp->drawstate.globals.erase("camera");
+      if (glapp->session.globals.count("camera") > 0)
+        glapp->session.globals.erase("camera");
     }
 
     int x = evt.getPosition().x();
@@ -594,7 +594,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       if (evt.isButtonDown(Event::Button5))
       {
          //Depth sort geometry
-         glapp->aview->sort = true;
+         glapp->queueCommands("sort");
       }
 
     }
@@ -631,6 +631,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
       {
          //Depth sort geometry
          //glapp->aview->sort = true;
+         //glapp->queueCommands("sort");
       }
     }
     else if (evt.isButtonDown(Event::ButtonUp ))

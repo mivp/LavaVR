@@ -2,7 +2,9 @@
 # init.py : LavaVu OmegaLib init script
 #######################################
 print " -------------------------- Loading LavaVR -------------------------- "
-import LavaVu.lavavu as lavavu
+import sys
+sys.path.append('LavaVu')
+import lavavu
 import LavaVR
 from omega import *
 from euclid import *
@@ -260,7 +262,7 @@ if hasattr(sys, 'argv') and len(sys.argv) > 0:
     loadScript(sys.argv[0])
 
 #Load initial state
-queueCommand("lv.file('state.json')")
+queueCommand("lv.restore()")
 
 queueCommand(":freefly")
 

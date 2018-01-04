@@ -16,7 +16,7 @@ set (CMAKE_CXX_STANDARD 11)
 SET(MODULE_NAME LavaVR)
 
 include_directories(${OMEGA_INCLUDE_DIRS})
-link_directories(LavaVu/bin)
+link_directories(LavaVu/lavavu)
 
 # Set module name and source files here
 add_library(${MODULE_NAME} MODULE 
