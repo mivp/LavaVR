@@ -183,10 +183,9 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     while (app->glapp->viewer->commands.size() > 0)
     {
         //Critical section
-        pthread_mutex_lock(&app->glapp->viewer->cmd_mutex);
+        std::lock_guard<std::mutex> guard(app->glapp->viewer->cmd_mutex);
         std::string cmd = app->glapp->viewer->commands.front();
         app->glapp->viewer->commands.pop_front();
-        pthread_mutex_unlock(&app->glapp->viewer->cmd_mutex);
 
         app->glapp->parseCommands(cmd);
     }
@@ -759,13 +758,12 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
       std::stringstream iss(commandstr);
       std::string line;
 
-    pthread_mutex_lock(&glapp->viewer->cmd_mutex);
+      std::lock_guard<std::mutex> guard(glapp->viewer->cmd_mutex);
       while(std::getline(iss, line))
       {
          glapp->viewer->commands.push_back(line);
          //glapp->queueCommands(line);
       }
-    pthread_mutex_unlock(&glapp->viewer->cmd_mutex);
    }
 }
 
