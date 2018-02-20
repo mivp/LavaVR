@@ -139,7 +139,7 @@ def _populateFileMenu():
 
   #Skip the loading scripts
   skip = ["init.script", "init.py"]
-  if hasattr(sys, 'argv') and len(sys.argv) > 0 and file == sys.argv[0]:
+  if hasattr(sys, 'argv') and len(sys.argv) > 0:
     skip += [sys.argv[0]]
   import os
 
