@@ -9,7 +9,6 @@
 #include <omegaGl.h>
 #include <omegaToolkit.h>
 #include "LavaVu/src/LavaVu.h"
-#include "LavaVu/src/Server.h"
 #include <dirent.h>
 #include <iostream>
 #include <iomanip>
@@ -40,10 +39,12 @@ class LavaVuApplication: public EngineModule
 public:
   LavaVu* glapp;
   bool isMaster;
+  bool isFirstDisplay;
 
   //Python exposed flags
   bool modelCam;
-  bool stickRotate;
+  bool stickRotateX;
+  bool stickRotateY;
   bool stickTimestep;
   bool clearDepthBefore;
   bool clearDepthAfter;
@@ -61,10 +62,12 @@ public:
     glapp = NULL; 
     SystemManager* sys = SystemManager::instance();
     isMaster = sys->isMaster();
+    isFirstDisplay = false;
 
     //Python exposed flags
     modelCam = true;
-    stickRotate = true;
+    stickRotateX = true;
+    stickRotateY = true;
     stickTimestep = false;
     clearDepthBefore = false;
     clearDepthAfter = false;
@@ -136,6 +139,20 @@ void LavaVuRenderPass::initialize()
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 {
+  //Clean viewer exit
+  if (app->glapp && app->glapp->viewer && app->glapp->viewer->quitProgram)
+  {
+    PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
+    //Delete objects
+    app->glapp->destroy();
+    pi->queueCommand("lv = None; _lvu = None; lvr = None; _lvr = None; import gc; gc.collect();");
+    //exit(0);
+    //return;
+  }
+
+  if (!app->glapp->viewer)
+    return;
+
   if (context.task == DrawContext::SceneDrawTask)
   {
     client->getRenderer()->beginDraw3D(context);
@@ -143,11 +160,13 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     if (!app->glapp->viewer->isopen)
     {
       //Have to manually call these as not using a window manager
+  app->glapp->viewer->render_thread = std::this_thread::get_id();
       app->glapp->viewer->open(context.tile->pixelSize[0], context.tile->pixelSize[1]);
       app->glapp->viewer->init();
+  std::cerr << "OMEGALIB Render thread: " << app->glapp->viewer->render_thread << " == " << std::this_thread::get_id() << std::endl;
+  std::cerr << " tile size " << context.tile->pixelSize[0] << " x " << context.tile->pixelSize[1] << std::endl;
       app->glapp->loadModelStep(0, 0, true); //Open/load if not already
       app->glapp->resetViews(); //Forces bounding box update
-
 
 
       //Transfer LavaVu camera settings to Omegalib
@@ -172,14 +191,18 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     }
 
     //Copy commands before consumed
+    //... only needed for web interface
+#define WEBSERVER
+#ifdef WEBSERVER
     static int comlen = 0;
     app->commands = app->glapp->viewer->commands;
     //Update state after commands are processed
     if (comlen > app->commands.size() && app->commands.size() == 0)
       app->updateState();
     comlen = app->commands.size();
+#endif
 
-    //TODO: make this a function of OpenGLViewer
+    //TODO: make this a function of OpenGLViewer as just duplicating code here
     while (app->glapp->viewer->commands.size() > 0)
     {
         //Critical section
@@ -199,11 +222,10 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     }
     //Update title label
     std::string titleText = app->glapp->aview->properties["title"];
-    if (titleText.length() > 0)
-    {
-       if (app->titleLabel->getText() != titleText)
-          app->titleLabel->setText(titleText);
-    }
+    if (titleText.length() == 0)
+    	titleText = app->glapp->session.global("caption");
+    if (titleText.length() > 0 && app->titleLabel->getText() != titleText)
+        app->titleLabel->setText(titleText);
 
     //Fade out status label (doesn't seem to work in cave)
     float alpha = app->statusLabel->getAlpha();
@@ -215,8 +237,17 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     else
        app->statusLabel->setAlpha(alpha * 0.95);
 
-    //Hack to undo the Y offset
-    glTranslatef(0, 2, 0);
+    //Hack to undo the Y offset for head position (height of cave2 user)
+    //glTranslatef(0, 1.82, 0);
+
+GLfloat modelview[16];
+glGetFloatv(GL_MODELVIEW_MATRIX, modelview);
+memcpy(&app->glapp->session.context.MV, &modelview, sizeof(float)*16);
+
+GLfloat projection[16];
+glGetFloatv(GL_PROJECTION_MATRIX, projection);
+memcpy(&app->glapp->session.context.P, &projection, sizeof(float)*16);
+
 
     //Apply the model rotation/scaling
     if (app->modelCam)
@@ -234,21 +265,30 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
     //Draw overlay on first screen only
     if (context.tile->isInGrid)
     {
+      //fprintf(stderr, "GRID %d %d\n", context.tile->gridX, context.tile->gridY);
       if (context.tile->gridX == 0 && context.tile->gridY == 0)
       {
-        //app->glapp->viewer->display();
-        app->glapp->display();
+        //Save first display flag
+        app->isFirstDisplay = true;
+
+        app->glapp->viewer->display();
+        //app->glapp->display();
+        //Disable shaders
+        glUseProgram(0);
         if (context.eye == DrawContext::EyeCyclop)
-            app->glapp->aview->drawOverlay(app->glapp->aview->inverse, titleText);
+            app->glapp->aview->drawOverlay();
       }
       else
       {
         app->glapp->objectlist = false;  //Disable text output on all but first tile
         app->glapp->status = false;
-        app->glapp->display();
-        //app->glapp->viewer->display();
+        //app->glapp->display();
+        app->glapp->viewer->display();
       }
     }
+
+    //Disable shaders
+    glUseProgram(0);
 
     //Optional clear depth 
     if (app->clearDepthAfter) glClear(GL_DEPTH_BUFFER_BIT);
@@ -268,6 +308,7 @@ void LavaVuRenderPass::render(Renderer* client, const DrawContext& context)
 void LavaVuApplication::updateState()
 {
   //Check for global camera loaded
+  //std::cout << " ______\n" << glapp->session.global("camera") << "\n______" << std::endl;
   if (glapp->session.globals.count("camera") > 0)
   {
     json scam = glapp->session.globals["camera"];
@@ -276,8 +317,10 @@ void LavaVuApplication::updateState()
     json o = scam["orientation"];
 
     omega::Camera* cam = Engine::instance()->getDefaultCamera();
-    cam->setOrientation(o[3], o[0], o[1], o[2]);
-    cam->setPosition(pos[0], pos[1], pos[2]);
+    if (!o.is_null())
+      cam->setOrientation(o[3], o[0], o[1], o[2]);
+    if (!pos.is_null())
+      cam->setPosition(pos[0], pos[1], pos[2]);
 
     PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
     //std::stringstream cmd;
@@ -307,6 +350,7 @@ void LavaVuApplication::updateState()
 
 void LavaVuApplication::updateMenu()
 {
+//return;
   PythonInterpreter* pi = SystemManager::instance()->getScriptInterpreter();
   //Populate file menu
   pi->queueCommand("_populateFileMenu()");
@@ -316,6 +360,8 @@ void LavaVuApplication::updateMenu()
 
 void LavaVuApplication::saveState(std::string statefile)
 {
+  //Save state on first node only
+  if (!isFirstDisplay) return;
   //Get camera positon, orientation and LavaVu model rotation
   omega::Camera* cam = Engine::instance()->getDefaultCamera();
   View* view = glapp->aview;
@@ -526,10 +572,11 @@ void LavaVuApplication::handleEvent(const Event& evt)
     std::string buttonstr = buttons.str();
     if (buttonstr.length() > 0)
     {
-       std::cout << buttonstr << " : Analogue LR: " << evt.getAxis(0) << " UD: " << evt.getAxis(1) << std::endl;
+      if (isMaster)
+        std::cout << buttonstr << " : Analogue LR: " << evt.getAxis(0) << " UD: " << evt.getAxis(1) << std::endl;
       //Clear loaded camera data on button press
-      if (glapp->session.globals.count("camera") > 0)
-        glapp->session.globals.erase("camera");
+      //if (glapp->session.globals.count("camera") > 0)
+      //  glapp->session.globals.erase("camera");
     }
 
     int x = evt.getPosition().x();
@@ -539,14 +586,14 @@ void LavaVuApplication::handleEvent(const Event& evt)
     if (evt.isButtonDown(Event::Button2)) //Circle
     {
        menuOpen = true;
-       printf("Menu opened\n");
+       //printf("Menu opened\n");
     }
     else if (evt.isButtonDown(Event::Button3)) //Cross
     {
        if (menuOpen)
        {
          menuOpen = false;
-         printf("Menu closed\n");
+         //printf("Menu closed\n");
          //Load any changes to files/objects
          updateMenu();
        }
@@ -600,6 +647,7 @@ void LavaVuApplication::handleEvent(const Event& evt)
     else if (evt.isButtonDown(Event::Button5))
     {
       //L1 Trigger (small) - Multi-press to fine tune
+//TODO: check/fix?
       if (evt.isButtonDown(Event::ButtonLeft ))
       {
          glapp->queueCommands("scale all 0.95");
@@ -646,14 +694,12 @@ void LavaVuApplication::handleEvent(const Event& evt)
     }
     else if (evt.isButtonDown(Event::ButtonLeft ))
     {
-        //glapp->queueCommands("model up");
-        glapp->parseCommands("model up");
+        glapp->queueCommands("model up");
         updateMenu();
     }
     else if (evt.isButtonDown( Event::ButtonRight ))
     {
-        //glapp->queueCommands("model down");
-        glapp->parseCommands("model down");
+        glapp->queueCommands("model down");
         updateMenu();
     }
     else
@@ -665,16 +711,16 @@ void LavaVuApplication::handleEvent(const Event& evt)
         if (abs(analogUD) + abs(analogLR) > 0.01)
         {
            //Default is model rotate
-           if (!stickTimestep && stickRotate)
+           if (!stickTimestep && (stickRotateX || stickRotateY))
            {
              std::stringstream rcmd;
-             if (abs(analogUD) > 0.02)
+             if (stickRotateX && abs(analogUD) > 0.02)
              {
                 rcmd << "rotate x " << (analogUD*0.5);
                 glapp->queueCommands(rcmd.str());
                 //glapp->parseCommands(rcmd.str());
              }
-             if (abs(analogLR) > 0.02)
+             if (stickRotateY && abs(analogLR) > 0.02)
              {
                 std::stringstream rcmd;
                 rcmd << "rotate y " << (analogLR*0.5);
@@ -701,11 +747,22 @@ void LavaVuApplication::handleEvent(const Event& evt)
            else if (abs(analogUD) > abs(analogLR))
            {
              //Timestep sweep
+             int J = analogUD < 0 ? (int)(analogUD*2.0 - 0.5) : (int)(analogUD*2.0 + 0.5);
+             printf("Sweep %f - %f (%d)\n", analogUD, analogUD, J);
+             if (J != 0)
+             {
+               std::stringstream ss;
+               ss << "jump " << J;
+               glapp->queueCommands(ss.str());
+               std::cout << ss.str() << std::endl;
+             }
+/*
              if (analogUD > 0.02)
                glapp->queueCommands("timestep down");
              else if (analogUD < 0.02)
                glapp->queueCommands("timestep up");
              //evt.setProcessed();
+*/
            }
         }
         else //Second stick?
@@ -737,6 +794,8 @@ void LavaVuApplication::handleEvent(const Event& evt)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void LavaVuApplication::commitSharedData(SharedOStream& out)
 {
+//... only needed for web interface
+#ifdef WEBSERVER
    std::stringstream oss;
    if (isMaster)
    {
@@ -744,11 +803,14 @@ void LavaVuApplication::commitSharedData(SharedOStream& out)
        oss << commands[i] << std::endl;
    }
    out << oss.str();
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void LavaVuApplication::updateSharedData(SharedIStream& in)
 {
+//... only needed for web interface
+#ifdef WEBSERVER
    std::string commandstr;
    in >> commandstr;
 
@@ -765,10 +827,10 @@ void LavaVuApplication::updateSharedData(SharedIStream& in)
          //glapp->queueCommands(line);
       }
    }
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
 //https://wiki.python.org/moin/boost.python/HowTo#SWIG_exposed_C.2B-.2B-_object_from_Python
 struct PySwigObject
 {
@@ -794,9 +856,19 @@ void* extract_swig_wrapped_pointer(PyObject* obj)
   return pointer;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+LavaVuApplication* vrm = NULL;
 LavaVuApplication* initialize(PyObject* lvswig)
 {
-  LavaVuApplication* vrm = new LavaVuApplication();
+  //LavaVuApplication* vrm = new LavaVuApplication();
+  if (!vrm)
+  {
+    vrm = new LavaVuApplication();
+    ModuleServices::addModule(vrm);
+    //ModuleServices::removeModule(vrm);
+    vrm->doInitialize(Engine::instance());
+  }
   //Use existing app
   if (lvswig)
   {
@@ -805,8 +877,6 @@ LavaVuApplication* initialize(PyObject* lvswig)
     vrm->glapp = lvapp;
   }
 
-  ModuleServices::addModule(vrm);
-  vrm->doInitialize(Engine::instance());
 
   return vrm;
 }
@@ -820,8 +890,10 @@ BOOST_PYTHON_MODULE(LavaVR)
   PYAPI_REF_BASE_CLASS(LavaVuApplication)
       PYAPI_METHOD(LavaVuApplication, saveDefaultState)
       PYAPI_METHOD(LavaVuApplication, saveNewState)
+      PYAPI_METHOD(LavaVuApplication, updateState)
       .def_readwrite("modelCam", &LavaVuApplication::modelCam)
-      .def_readwrite("stickRotate", &LavaVuApplication::stickRotate)
+      .def_readwrite("stickRotateX", &LavaVuApplication::stickRotateX)
+      .def_readwrite("stickRotateY", &LavaVuApplication::stickRotateY)
       .def_readwrite("stickTimestep", &LavaVuApplication::stickTimestep)
       .def_readwrite("clearDepthBefore", &LavaVuApplication::clearDepthBefore)
       .def_readwrite("clearDepthAfter", &LavaVuApplication::clearDepthAfter)
